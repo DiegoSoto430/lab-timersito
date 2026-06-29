@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Lab Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&family=Roboto:wght@600&family=Roboto+Mono:wght@100&display=swap" rel="stylesheet" />
+  <style>
+/* ========== RESET ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font-family: 'Poppins', sans-serif; }
+
+/* ========== SCREENS ========== */
+.screen {
+  display: none; width: 100%; height: 100vh;
+  position: absolute; top: 0; left: 0;
+  background: #fff; overflow: hidden; flex-direction: column;
+}
+.screen.active { display: flex; }
+
+/* ========== PANTALLA 1: HOME ========== */
+.home-content {
+  display: flex; flex-direction: column;
+  align-items: center; padding-top: 160px; width: 100%;
+}
+.home-title {
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 50px;
+  line-height: 1.1; color: #000; text-align: left; width: 330px; margin-bottom: 40px;
+}
+.home-buttons { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+.btn-user {
+  width: 330px; height: 105px; background: #d9d9d9; border: none; border-radius: 8px;
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 50px; color: #000;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.btn-user:active { background: #bdbdbd; }
+
+/* ========== PANTALLA 2: ID CORRIDA ========== */
+.id-header { display: flex; align-items: center; padding: 44px 24px 0 16px; }
+.id-content {
+  display: flex; flex-direction: column;
+  align-items: center; padding-top: 24px; width: 100%;
+}
+.greeting {
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 64px;
+  color: #000; text-align: left; width: 330px; line-height: 1.1; margin-bottom: 36px;
+}
+.id-label {
+  font-family: 'Roboto', sans-serif; font-weight: 600; font-size: 24px;
+  color: #000; text-align: center; max-width: 330px; margin-bottom: 14px; line-height: 1.3;
+}
+.corrida-input {
+  width: 330px; height: 48px; background: #d9d9d9; border: none; border-radius: 6px;
+  font-family: 'Roboto', sans-serif; font-size: 20px; padding: 0 14px;
+  margin-bottom: 32px; outline: none; color: #000;
+}
+.id-action-buttons { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.btn-comenzar {
+  width: 280px; height: 72px; background: #d9d9d9; border: none; border-radius: 12px;
+  font-family: 'Roboto', sans-serif; font-weight: 600; font-size: 32px; color: #000;
+  cursor: pointer; transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.btn-comenzar:active { background: #bdbdbd; }
+.btn-finalizar {
+  width: 280px; height: 72px; background: #1d1d1d; border: none; border-radius: 12px;
+  font-family: 'Roboto', sans-serif; font-weight: 600; font-size: 32px; color: #fff;
+  cursor: pointer; transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.btn-finalizar:active { background: #3a3a3a; }
+
+/* ========== PANTALLA 3: ÁREAS ========== */
+.areas-header { display: flex; align-items: center; padding: 44px 24px 24px 16px; gap: 8px; }
+.btn-back {
+  background: none; border: none; font-family: 'Poppins', sans-serif; font-weight: 600;
+  font-size: 32px; color: #000; cursor: pointer; padding: 4px 8px; line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.areas-title { font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 50px; color: #000; }
+.areas-list { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.btn-area {
+  width: 332px; height: 100px; border: none; border-radius: 8px;
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 32px; color: #000;
+  cursor: pointer; text-align: right; padding-right: 24px;
+  transition: filter 0.15s; -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+.btn-area:active { filter: brightness(0.92); }
+#btn-pretratamiento { background: #E0D4E7; }
+#btn-extraccion     { background: #DBEEF7; }
+#btn-mastermix      { background: #CCDCEB; }
+#btn-amplificacion  { background: #EECEDA; }
+.btn-area.bloqueada { opacity: 0.55; cursor: not-allowed; }
+.btn-area.bloqueada::after {
+  content: '\1F512';
+  position: absolute; left: 16px; top: 50%;
+  transform: translateY(-50%); font-size: 22px;
+}
+/* Badge de analista en el área */
+.area-badge {
+  position: absolute; top: 8px; right: 12px;
+  font-size: 13px; font-weight: 600; color: #444;
+  font-family: 'Roboto', sans-serif;
+}
+
+/* ========== PANTALLA 4: CRONÓMETRO ========== */
+.timer-header { display: flex; align-items: center; padding: 44px 24px 0 16px; gap: 8px; }
+.timer-area-name { font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 32px; color: #000; }
+.timer-container {
+  position: relative; width: 280px; height: 280px;
+  margin: 28px auto 0; display: flex; align-items: center; justify-content: center;
+}
+.timer-track {
+  position: absolute; width: 260px; height: 260px;
+  border-radius: 50%; background-color: #fff;
+  border: 3px solid #e0e0e0; box-shadow: 0 0 0 1px #ccc; z-index: 0;
+}
+.circle {
+  border-radius: 50%; width: 210px; height: 210px;
+  background-color: #1d1d1d; color: #fff;
+  display: flex; justify-content: center; align-items: center;
+  position: relative; z-index: 1;
+}
+.stopwatch {
+  font-family: 'Roboto Mono', monospace; font-weight: 100;
+  font-size: 36px; color: #fff; letter-spacing: 2px;
+}
+.seconds-sphere {
+  width: 20px; height: 20px; border-radius: 50%;
+  background-color: #1d1d1d; border: 3px solid #fff;
+  position: absolute;
+  left: calc(50% - 10px); top: calc(50% - 10px);
+  transform: rotate(-90deg) translateX(130px);
+  animation: rotacion 60s linear infinite;
+  animation-play-state: paused; z-index: 3;
+}
+@keyframes rotacion {
+  from { transform: rotate(-90deg) translateX(130px); }
+  to   { transform: rotate(270deg) translateX(130px); }
+}
+.timer-buttons { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 32px; }
+.btn-timer {
+  width: 197px; height: 63px; background: #d9d9d9; border: none; border-radius: 8px;
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 32px; color: #000;
+  cursor: pointer; transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.btn-timer:active { background: #bdbdbd; }
+.btn-timer:disabled { opacity: 0.4; cursor: default; }
+.btn-fin { background: #1d1d1d; color: #fff; }
+.btn-fin:active { background: #3a3a3a; }
+
+/* ========== MODALES ========== */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); display: flex; align-items: center;
+  justify-content: center; z-index: 100;
+}
+.modal-overlay.hidden { display: none; }
+.modal-box {
+  background: #fff; border-radius: 16px; padding: 36px 28px;
+  width: 300px; text-align: center; display: flex; flex-direction: column; gap: 24px;
+}
+.modal-text {
+  font-family: 'Poppins', sans-serif; font-weight: 600;
+  font-size: 22px; color: #000; line-height: 1.3;
+}
+.modal-buttons { display: flex; gap: 12px; justify-content: center; }
+.btn-modal {
+  flex: 1; height: 52px; border: none; border-radius: 8px;
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 18px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-cancel { background: #d9d9d9; color: #000; }
+.btn-confirm { background: #1d1d1d; color: #fff; }
+
+/* ========== TOAST ========== */
+.toast {
+  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+  background: #1d1d1d; color: #fff; font-family: 'Poppins', sans-serif;
+  font-weight: 600; font-size: 16px; padding: 14px 28px; border-radius: 40px;
+  z-index: 200; opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== PANTALLA 1: HOME ===== -->
+  <div id="screen-home" class="screen active">
+    <div class="home-content">
+      <h1 class="home-title">¿Quien captura hoy?</h1>
+      <div class="home-buttons">
+        <button class="btn-user" onclick="selectUser('LESE','Estefany')">LESE</button>
+        <button class="btn-user" onclick="selectUser('LEOB','Laura')">LEOB</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PANTALLA 2: ID CORRIDA ===== -->
+  <div id="screen-id" class="screen">
+    <div class="id-header">
+      <button class="btn-back" onclick="showScreen('screen-home')">←</button>
+    </div>
+    <div class="id-content">
+      <h2 class="greeting">Hola, <span id="user-name">Estefany</span>!</h2>
+      <p class="id-label">Escribe el ID de corrida que deseas capturar</p>
+      <input type="text" id="corrida-input" class="corrida-input" />
+      <div class="id-action-buttons">
+        <button class="btn-comenzar" onclick="goToAreas()">Comenzar</button>
+        <button class="btn-finalizar" onclick="finalizarCorrida()">Finalizar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PANTALLA 3: ÁREAS ===== -->
+  <div id="screen-areas" class="screen">
+    <div class="areas-header">
+      <button class="btn-back" onclick="goBack('screen-id')">←</button>
+      <h2 class="areas-title">Áreas</h2>
+    </div>
+    <div class="areas-list">
+      <button class="btn-area" id="btn-pretratamiento" onclick="goToTimer('Pretratamiento')">
+        Pretratamiento
+        <span class="area-badge" id="badge-pretratamiento"></span>
+      </button>
+      <button class="btn-area" id="btn-extraccion" onclick="goToTimer('Extraccion')">
+        Extracción
+        <span class="area-badge" id="badge-extraccion"></span>
+      </button>
+      <button class="btn-area" id="btn-mastermix" onclick="goToTimer('Mastermix')">
+        Mastermix
+        <span class="area-badge" id="badge-mastermix"></span>
+      </button>
+      <button class="btn-area" id="btn-amplificacion" onclick="goToTimer('Amplificacion')">
+        Amplificación
+        <span class="area-badge" id="badge-amplificacion"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== PANTALLA 4: CRONÓMETRO ===== -->
+  <div id="screen-timer" class="screen">
+    <div class="timer-header">
+      <button class="btn-back" onclick="goBack('screen-areas')">←</button>
+      <h2 class="timer-area-name" id="area-name">Pretratamiento</h2>
+    </div>
+    <div class="timer-container">
+      <div class="timer-track"></div>
+      <div class="circle">
+        <div id="stopwatch" class="stopwatch">00:00</div>
+      </div>
+      <div id="seconds-sphere" class="seconds-sphere"></div>
+    </div>
+    <div class="timer-buttons">
+      <button class="btn-timer" id="btn-iniciar" onclick="iniciarCronometro()">Iniciar</button>
+      <button class="btn-timer btn-fin" onclick="finCronometro()">Fin</button>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: CONFIRMAR TIEMPO ===== -->
+  <div id="modal-confirm" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p class="modal-text" id="modal-text">¿Registrar 0.50 h?</p>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cancelarRegistro()">Cancelar</button>
+        <button class="btn-modal btn-confirm" onclick="confirmarRegistro()">Registrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: CONFIRMAR FINALIZAR ===== -->
+  <div id="modal-finalizar" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p class="modal-text" id="modal-finalizar-text">¿Finalizar corrida?</p>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cancelarFinalizar()">Cancelar</button>
+        <button class="btn-modal btn-confirm" onclick="confirmarFinalizar()">Finalizar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div id="toast" class="toast"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const SERVER = 'https://lab-timersito-production.up.railway.app';
+
+// ============================================================
+// ESTADO
+// ============================================================
+const state = {
+  usuario: '',
+  nombre: '',
+  idCorrida: '',
+  areaActual: '',
+  corridaInfo: null   // datos actuales de la corrida en DB
+};
+
+// ============================================================
+// API
+// ============================================================
+async function apiPost(url, body) {
+  const r = await fetch(SERVER + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (!r.ok) throw data;
+  return data;
+}
+
+async function apiPatch(url, body) {
+  const r = await fetch(SERVER + url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (!r.ok) throw data;
+  return data;
+}
+
+async function apiGet(url) {
+  const r = await fetch(SERVER + url);
+  const data = await r.json();
+  if (!r.ok) throw data;
+  return data;
+}
+
+// ============================================================
+// CRONÓMETRO
+// ============================================================
+let stopwatchInterval = null;
+let runningTime = 0;
+let isRunning = false;
+
+function iniciarCronometro() {
+  if (isRunning) return;
+  isRunning = true;
+
+  const sphere = document.getElementById('seconds-sphere');
+  sphere.style.animation = 'rotacion 60s linear infinite';
+  sphere.style.animationPlayState = 'running';
+
+  const startTime = Date.now() - runningTime;
+  stopwatchInterval = setInterval(() => {
+    runningTime = Date.now() - startTime;
+    document.getElementById('stopwatch').textContent = calcularTiempo(runningTime);
+  }, 1000);
+
+  document.getElementById('btn-iniciar').disabled = true;
+}
+
+function finCronometro() {
+  if (!isRunning && runningTime === 0) return;
+  clearInterval(stopwatchInterval);
+  isRunning = false;
+  document.getElementById('seconds-sphere').style.animationPlayState = 'paused';
+
+  const horas = runningTime / 3600000;
+  window._horasPendientes = horas;
+
+  document.getElementById('modal-text').textContent = `¿Registrar ${formatearHoras(horas)}?`;
+  document.getElementById('modal-confirm').classList.remove('hidden');
+}
+
+function resetCronometro() {
+  clearInterval(stopwatchInterval);
+  isRunning = false;
+  runningTime = 0;
+  document.getElementById('stopwatch').textContent = '00:00';
+  document.getElementById('btn-iniciar').disabled = false;
+  const sphere = document.getElementById('seconds-sphere');
+  sphere.style.animation = 'none';
+  void sphere.offsetWidth;
+}
+
+function calcularTiempo(ms) {
+  const s = Math.floor(ms / 1000);
+  const min = Math.floor(s / 60).toString().padStart(2, '0');
+  const seg = (s % 60).toString().padStart(2, '0');
+  return `${min}:${seg}`;
+}
+
+function formatearHoras(h) {
+  if (h < 1 / 60) return 'menos de 1 min';
+  const min = Math.round(h * 60);
+  return h < 1 ? `${min} min (${h.toFixed(2)} h)` : `${h.toFixed(2)} h`;
+}
+
+// ============================================================
+// NAVEGACIÓN
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goBack(target) {
+  if (target === 'screen-areas') resetCronometro();
+  showScreen(target);
+}
+
+function selectUser(usuario, nombre) {
+  state.usuario = usuario;
+  state.nombre = nombre;
+  document.getElementById('user-name').textContent = nombre;
+  document.getElementById('corrida-input').value = '';
+  showScreen('screen-id');
+}
+
+// ============================================================
+// PANTALLA ÁREAS — cargar badges de analistas
+// ============================================================
+function actualizarBadges(corrida) {
+  const mapa = {
+    'pretratamiento': corrida.an_pretratamiento,
+    'extraccion':     corrida.an_extraccion,
+    'mastermix':      corrida.an_mastermix,
+    'amplificacion':  corrida.an_amplificacion
+  };
+  for (const [key, val] of Object.entries(mapa)) {
+    const badge = document.getElementById(`badge-${key}`);
+    const btn   = document.getElementById(`btn-${key}`);
+    if (badge) badge.textContent = val ? `✓ ${val}` : '';
+    if (btn) {
+      // Bloquear si hay otro analista en esta área
+      if (val && val !== state.usuario) {
+        btn.classList.add('bloqueada');
+      } else {
+        btn.classList.remove('bloqueada');
+      }
+    }
+  }
+}
+
+// ============================================================
+// FLUJO: COMENZAR
+// ============================================================
+async function goToAreas() {
+  const val = document.getElementById('corrida-input').value.trim();
+  if (!val) { showToast('⚠️ Escribe el ID de corrida'); return; }
+  state.idCorrida = val;
+
+  try {
+    await apiPost('/api/corrida', { id_corrida: val, usuario: state.usuario });
+
+    // Cargar datos actuales de la corrida para mostrar badges
+    const corridas = await apiGet('/api/corridas');
+    state.corridaInfo = corridas.find(c => c.id_corrida === val) || null;
+    if (state.corridaInfo) actualizarBadges(state.corridaInfo);
+
+    showScreen('screen-areas');
+  } catch (e) {
+    showToast('⚠️ Sin conexión al servidor');
+  }
+}
+
+// ============================================================
+// FLUJO: FINALIZAR CORRIDA
+// ============================================================
+function finalizarCorrida() {
+  const val = document.getElementById('corrida-input').value.trim();
+  if (!val) { showToast('⚠️ Escribe el ID de corrida'); return; }
+  state.idCorrida = val;
+
+  document.getElementById('modal-finalizar-text').textContent =
+    `¿Finalizar corrida "${val}"?\nSe registrará la hora de cierre.`;
+  document.getElementById('modal-finalizar').classList.remove('hidden');
+}
+
+function cancelarFinalizar() {
+  document.getElementById('modal-finalizar').classList.add('hidden');
+}
+
+async function confirmarFinalizar() {
+  document.getElementById('modal-finalizar').classList.add('hidden');
+  try {
+    const res = await apiPatch(`/api/corrida/${encodeURIComponent(state.idCorrida)}/finalizar`, {});
+    const totalH = res.tiempo_total ? res.tiempo_total.toFixed(2) : '0.00';
+    showToast(`✅ Corrida finalizada — ${totalH} h totales`);
+    document.getElementById('corrida-input').value = '';
+  } catch (e) {
+    showToast(e?.error || '⚠️ Error al finalizar');
+  }
+}
+
+// ============================================================
+// FLUJO: IR A CRONÓMETRO
+// ============================================================
+function goToTimer(area) {
+  // Verificar si el área está bloqueada para este usuario
+  if (state.corridaInfo) {
+    const colAn = {
+      'Pretratamiento': 'an_pretratamiento',
+      'Extraccion':     'an_extraccion',
+      'Mastermix':      'an_mastermix',
+      'Amplificacion':  'an_amplificacion'
+    };
+    const anArea = state.corridaInfo[colAn[area]];
+    if (anArea && anArea !== state.usuario) {
+      showToast(`⚠️ Esta área ya la captura ${anArea}`);
+      return; // No avanza
+    }
+  }
+  state.areaActual = area;
+  document.getElementById('area-name').textContent = area
+    .replace('Extraccion','Extracción')
+    .replace('Amplificacion','Amplificación');
+  resetCronometro();
+  showScreen('screen-timer');
+}
+
+// ============================================================
+// MODAL: REGISTRAR TIEMPO
+// ============================================================
+function cancelarRegistro() {
+  document.getElementById('modal-confirm').classList.add('hidden');
+  resetCronometro();
+}
+
+async function confirmarRegistro() {
+  document.getElementById('modal-confirm').classList.add('hidden');
+  try {
+    await apiPatch(
+      `/api/corrida/${encodeURIComponent(state.idCorrida)}/area`,
+      { area: state.areaActual, horas: window._horasPendientes || 0, usuario: state.usuario }
+    );
+    resetCronometro();
+    // Refrescar badges
+    const corridas = await apiGet('/api/corridas');
+    state.corridaInfo = corridas.find(c => c.id_corrida === state.idCorrida) || null;
+    if (state.corridaInfo) actualizarBadges(state.corridaInfo);
+
+    showScreen('screen-areas');
+    setTimeout(() => showToast('✅ Tiempo registrado'), 50);
+  } catch (e) {
+    // e.error contiene el mensaje del servidor
+    const msg = e?.error || '⚠️ Error al guardar';
+    resetCronometro();
+    showScreen('screen-areas');
+    setTimeout(() => showToast(msg), 50);
+  }
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => showScreen('screen-home'));
+</script>
+</body>
+</html>
