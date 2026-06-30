@@ -21,17 +21,23 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// ── Helpers de fecha ─────────────────────────────────────────
+// ── Helpers de fecha (zona horaria Hermosillo, UTC-7 fijo) ───
+function horaHermosillo() {
+  // Hermosillo no tiene horario de verano: siempre UTC-7
+  const ahora = new Date();
+  return new Date(ahora.getTime() - 7 * 60 * 60 * 1000);
+}
+
 function nowStr() {
-  const d = new Date();
+  const d = horaHermosillo();
   const p = n => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
 
 function todayStr() {
-  const d = new Date();
+  const d = horaHermosillo();
   const p = n => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`;
+  return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)}/${d.getUTCFullYear()}`;
 }
 
 function parseTS(ts) {
