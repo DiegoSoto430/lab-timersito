@@ -19,13 +19,61 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
   display: none; width: 100%; height: 100vh;
   position: absolute; top: 0; left: 0;
   background: #fff; overflow: hidden; flex-direction: column;
+  transition: transform 0.32s ease;
+  transform: translateX(0);
 }
 .screen.active { display: flex; }
+
+/* Slide hacia adelante (avanzar) */
+.screen.slide-in-right { animation: slideInRight 0.32s ease forwards; }
+.screen.slide-out-left { animation: slideOutLeft 0.32s ease forwards; }
+
+/* Slide hacia atrás (volver) */
+.screen.slide-in-left  { animation: slideInLeft 0.32s ease forwards; }
+.screen.slide-out-right{ animation: slideOutRight 0.32s ease forwards; }
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+
+/* ========== FONDO DE CUADRÍCULA (Pantalla Home) ========== */
+.grid-wrapper {
+  min-height: 100%;
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  background-color: #f8fafc;
+}
+.grid-background {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+  background-size: 20px 30px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 60%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 60%, transparent 100%);
+}
 
 /* ========== PANTALLA 1: HOME ========== */
 .home-content {
   display: flex; flex-direction: column;
   align-items: center; padding-top: 160px; width: 100%;
+  position: relative; z-index: 1;
 }
 .home-title {
   font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 50px;
@@ -200,11 +248,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
 
   <!-- ===== PANTALLA 1: HOME ===== -->
   <div id="screen-home" class="screen active">
-    <div class="home-content">
-      <h1 class="home-title">¿Quien captura hoy?</h1>
-      <div class="home-buttons">
-        <button class="btn-user" onclick="selectUser('LESE','Estefany')">LESE</button>
-        <button class="btn-user" onclick="selectUser('LEOB','Laura')">LEOB</button>
+    <div class="grid-wrapper">
+      <div class="grid-background"></div>
+      <div class="home-content">
+        <h1 class="home-title">¿Quien captura hoy?</h1>
+        <div class="home-buttons">
+          <button class="btn-user" onclick="selectUser('LESE','Estefany')">LESE</button>
+          <button class="btn-user" onclick="selectUser('LEOB','Laura')">LEOB</button>
+        </div>
       </div>
     </div>
   </div>
@@ -212,7 +263,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
   <!-- ===== PANTALLA 2: ID CORRIDA ===== -->
   <div id="screen-id" class="screen">
     <div class="id-header">
-      <button class="btn-back" onclick="showScreen('screen-home')">←</button>
+      <button class="btn-back" onclick="showScreen('screen-home', 'back')">←</button>
     </div>
     <div class="id-content">
       <h2 class="greeting">Hola, <span id="user-name">Estefany</span>!</h2>
@@ -408,14 +459,42 @@ function formatearHoras(h) {
 // ============================================================
 // NAVEGACIÓN
 // ============================================================
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+function showScreen(id, direction = 'forward') {
+  const current = document.querySelector('.screen.active');
+  const next = document.getElementById(id);
+  if (current === next) return;
+
+  // Limpiar clases de animación previas
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('slide-in-right', 'slide-out-left', 'slide-in-left', 'slide-out-right');
+  });
+
+  if (!current) {
+    // Primera carga, sin animación
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    next.classList.add('active');
+    return;
+  }
+
+  next.classList.add('active');
+
+  if (direction === 'forward') {
+    next.classList.add('slide-in-right');
+    current.classList.add('slide-out-left');
+  } else {
+    next.classList.add('slide-in-left');
+    current.classList.add('slide-out-right');
+  }
+
+  setTimeout(() => {
+    current.classList.remove('active', 'slide-out-left', 'slide-out-right');
+    next.classList.remove('slide-in-right', 'slide-in-left');
+  }, 320);
 }
 
 function goBack(target) {
   if (target === 'screen-areas') resetCronometro();
-  showScreen(target);
+  showScreen(target, 'back');
 }
 
 function selectUser(usuario, nombre) {
@@ -549,13 +628,13 @@ async function confirmarRegistro() {
     state.corridaInfo = corridas.find(c => c.id_corrida === state.idCorrida) || null;
     if (state.corridaInfo) actualizarBadges(state.corridaInfo);
 
-    showScreen('screen-areas');
+    showScreen('screen-areas', 'back');
     setTimeout(() => showToast('✅ Tiempo registrado'), 50);
   } catch (e) {
     // e.error contiene el mensaje del servidor
     const msg = e?.error || '⚠️ Error al guardar';
     resetCronometro();
-    showScreen('screen-areas');
+    showScreen('screen-areas', 'back');
     setTimeout(() => showToast(msg), 50);
   }
 }
