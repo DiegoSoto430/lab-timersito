@@ -195,6 +195,22 @@ app.get('/api/corridas/csv', async (req, res) => {
   }
 });
 
+// ── GET /api/corridas/activas — Sin hora_fin ────────────────
+app.get('/api/corridas/activas', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT id_corrida, hora_inicio,
+             an_pretratamiento, an_extraccion, an_mastermix, an_amplificacion
+      FROM corridas
+      WHERE hora_fin IS NULL OR hora_fin = ''
+      ORDER BY id DESC
+    `);
+    res.json(r.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Arrancar ─────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', async () => {
   try {

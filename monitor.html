@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Monitor Lab Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&family=Roboto:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; min-height: 100%;
+  background: #f8fafc; font-family: 'Poppins', sans-serif;
+  overflow-x: hidden;
+}
+
+/* ── Fondo de cuadrícula igual que pantalla home ── */
+.grid-background {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+  background-size: 20px 30px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 60%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 60%, transparent 100%);
+}
+
+/* ── Layout ── */
+.content {
+  position: relative; z-index: 1;
+  padding: 44px 24px 40px;
+  display: flex; flex-direction: column; align-items: center;
+}
+
+/* ── Header ── */
+.monitor-title {
+  font-family: 'Poppins', sans-serif; font-weight: 600;
+  font-size: 40px; color: #000; text-align: left;
+  width: 100%; max-width: 370px; line-height: 1.1;
+  margin-bottom: 8px;
+}
+.status-bar {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; max-width: 370px; margin-bottom: 28px;
+}
+.status-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.status-text {
+  font-family: 'Roboto', sans-serif; font-weight: 400;
+  font-size: 14px; color: #666;
+}
+
+/* ── Tarjeta de corrida ── */
+.corrida-card {
+  width: 100%; max-width: 370px;
+  background: #fff; border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  margin-bottom: 20px;
+}
+.corrida-id {
+  font-family: 'Poppins', sans-serif; font-weight: 600;
+  font-size: 26px; color: #000; margin-bottom: 4px;
+}
+.corrida-inicio {
+  font-family: 'Roboto', sans-serif; font-weight: 400;
+  font-size: 14px; color: #888; margin-bottom: 16px;
+}
+.corrida-warning {
+  font-family: 'Roboto', sans-serif; font-weight: 600;
+  font-size: 13px; color: #f59e0b;
+  background: #fef3c7; border-radius: 8px;
+  padding: 6px 12px; margin-bottom: 14px;
+  display: inline-block;
+}
+
+/* ── Filas de área ── */
+.area-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  height: 56px; border-radius: 10px;
+  padding: 0 16px; margin-bottom: 10px;
+  font-family: 'Poppins', sans-serif; font-weight: 600;
+  font-size: 18px; color: #000;
+}
+.area-row:last-child { margin-bottom: 0; }
+.area-pretratamiento { background: #E0D4E7; }
+.area-extraccion     { background: #DBEEF7; }
+.area-mastermix      { background: #CCDCEB; }
+.area-amplificacion  { background: #EECEDA; }
+
+.area-right {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Roboto', sans-serif; font-size: 14px; font-weight: 600;
+}
+.badge-activo {
+  background: #22c55e; color: #fff;
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 13px;
+}
+.badge-vacio {
+  color: #aaa; font-weight: 400; font-size: 13px;
+}
+
+/* ── Estado vacío ── */
+.empty-state {
+  width: 100%; max-width: 370px;
+  text-align: center; padding: 60px 0;
+}
+.empty-state p {
+  font-family: 'Roboto', sans-serif; font-size: 18px; color: #999;
+}
+
+/* ── Contador regresivo ── */
+.refresh-bar {
+  width: 100%; max-width: 370px;
+  display: flex; align-items: center;
+  justify-content: flex-end; gap: 6px;
+  margin-top: 4px; margin-bottom: 24px;
+}
+.refresh-text {
+  font-family: 'Roboto', sans-serif; font-size: 13px; color: #aaa;
+}
+  </style>
+</head>
+<body>
+  <div class="grid-background"></div>
+  <div class="content">
+    <h1 class="monitor-title">Monitor</h1>
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      <span class="status-text" id="status-text">Actualizando...</span>
+    </div>
+    <div class="refresh-bar">
+      <span class="refresh-text" id="refresh-text">Próxima actualización: 10s</span>
+    </div>
+    <div id="corridas-container"></div>
+  </div>
+
+<script>
+const SERVER = 'https://lab-timersito-production.up.railway.app';
+let countdown = 10;
+let countdownInterval = null;
+
+const AREAS = [
+  { key: 'pretratamiento', label: 'Pretratamiento', css: 'area-pretratamiento' },
+  { key: 'extraccion',     label: 'Extracción',     css: 'area-extraccion'     },
+  { key: 'mastermix',      label: 'Mastermix',       css: 'area-mastermix'      },
+  { key: 'amplificacion',  label: 'Amplificación',  css: 'area-amplificacion'  },
+];
+
+async function fetchActivas() {
+  try {
+    const r = await fetch(`${SERVER}/api/corridas/activas`);
+    const data = await r.json();
+    renderCorridas(data);
+    document.getElementById('status-text').textContent =
+      `Última actualización: ${horaActual()}`;
+  } catch (e) {
+    document.getElementById('status-text').textContent = '⚠️ Sin conexión';
+  }
+}
+
+function renderCorridas(corridas) {
+  const container = document.getElementById('corridas-container');
+
+  if (!corridas.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <p>✅ No hay corridas activas</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = corridas.map(c => {
+    // Detectar si tiene al menos un área capturada
+    const tieneActividad = AREAS.some(a => c[`an_${a.key}`]);
+    const horasDesdeInicio = calcularHorasDesdeInicio(c.hora_inicio);
+    const posibleOlvido = horasDesdeInicio > 12; // más de 12h sin finalizar
+
+    const areasHTML = AREAS.map(a => {
+      const analista = c[`an_${a.key}`];
+      return `
+        <div class="area-row ${a.css}">
+          <span>${a.label}</span>
+          <div class="area-right">
+            ${analista
+              ? `<span class="badge-activo">${analista}</span>`
+              : `<span class="badge-vacio">Sin iniciar</span>`
+            }
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="corrida-card">
+        <div class="corrida-id">Corrida: ${c.id_corrida}</div>
+        <div class="corrida-inicio">Inicio: ${c.hora_inicio || '—'}</div>
+        ${posibleOlvido ? `<div class="corrida-warning">⚠️ Más de 12h activa — ¿olvidaron Finalizar?</div>` : ''}
+        ${areasHTML}
+      </div>`;
+  }).join('');
+}
+
+function calcularHorasDesdeInicio(horaInicio) {
+  if (!horaInicio) return 0;
+  const [datePart, timePart] = horaInicio.trim().split(' ');
+  if (!datePart || !timePart) return 0;
+  const [dd, mm, yyyy] = datePart.split('/');
+  const inicio = new Date(`${yyyy}-${mm}-${dd}T${timePart}`);
+  const ahora  = new Date();
+  return (ahora - inicio) / 3600000;
+}
+
+function horaActual() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function iniciarContador() {
+  clearInterval(countdownInterval);
+  countdown = 10;
+  countdownInterval = setInterval(() => {
+    countdown--;
+    document.getElementById('refresh-text').textContent =
+      `Próxima actualización: ${countdown}s`;
+    if (countdown <= 0) {
+      fetchActivas();
+      countdown = 10;
+    }
+  }, 1000);
+}
+
+// Arrancar
+fetchActivas();
+iniciarContador();
+</script>
+</body>
+</html>
