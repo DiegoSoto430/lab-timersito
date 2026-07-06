@@ -163,7 +163,7 @@ function renderCorridas(corridas) {
 
     const areasHTML = AREAS.map(a => {
       const anFin    = c[`an_${a.key}`];           // ya terminó (guardado en corridas)
-      const sesKey   = `${c.id_corrida}|${a.key}`; // en curso (sesiones_activas)
+      const sesKey   = `${c.id_corrida}|${a.label}`; // en curso (sesiones_activas) — usa label con mayúscula
       const enCurso  = sesionesActivas[sesKey];
 
       let rightHTML;
@@ -173,7 +173,7 @@ function renderCorridas(corridas) {
       } else if (enCurso) {
         // En curso — solo cronómetro
         const ms = calcularMs(enCurso);
-        rightHTML = `<span class="cronometro-vivo" id="crono-${c.id_corrida}-${a.key}">${formatMs(ms)}</span>`;
+        rightHTML = `<span class="cronometro-vivo" id="crono-${c.id_corrida}-${a.label}">${formatMs(ms)}</span>`;
       } else {
         rightHTML = `<span class="badge-vacio">Sin iniciar</span>`;
       }
