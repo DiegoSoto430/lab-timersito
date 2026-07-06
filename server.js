@@ -211,6 +211,78 @@ app.get('/api/corridas/activas', async (req, res) => {
   }
 });
 
+// ── POST /api/sesion/entrada — Registrar entrada a área ─────
+app.post('/api/sesion/entrada', async (req, res) => {
+  const { id_corrida, area, usuario } = req.body;
+  if (!id_corrida || !area || !usuario)
+    return res.status(400).json({ error: 'Faltan campos' });
+  try {
+    // Borrar sesión previa de este usuario en cualquier área de esta corrida
+    await pool.query(
+      `DELETE FROM sesiones_activas WHERE id_corrida=$1 AND usuario=$2`,
+      [id_corrida, usuario]
+    );
+    // Registrar nueva entrada
+    await pool.query(
+      `INSERT INTO sesiones_activas (id_corrida, area, usuario, hora_entrada)
+       VALUES ($1, $2, $3, $4)`,
+      [id_corrida, area, usuario, nowStr()]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('POST sesion/entrada:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── DELETE /api/sesion/salida — Limpiar sesión al confirmar ─
+app.delete('/api/sesion/salida', async (req, res) => {
+  const { id_corrida, usuario } = req.body;
+  if (!id_corrida || !usuario)
+    return res.status(400).json({ error: 'Faltan campos' });
+  try {
+    await pool.query(
+      `DELETE FROM sesiones_activas WHERE id_corrida=$1 AND usuario=$2`,
+      [id_corrida, usuario]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE sesion/salida:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/monitor — Corridas activas + sesiones en curso ─
+app.get('/api/monitor', async (req, res) => {
+  try {
+    const corridas = await pool.query(`
+      SELECT id_corrida, hora_inicio,
+             an_pretratamiento, an_extraccion, an_mastermix, an_amplificacion
+      FROM corridas
+      WHERE hora_fin IS NULL OR hora_fin = ''
+      ORDER BY id DESC
+    `);
+    const sesiones = await pool.query(
+      `SELECT id_corrida, area, usuario, hora_entrada FROM sesiones_activas`
+    );
+    res.json({ corridas: corridas.rows, sesiones: sesiones.rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── DELETE /api/corrida/:id_corrida — Eliminar corrida ──────
+app.delete('/api/corrida/:id_corrida', async (req, res) => {
+  const { id_corrida } = req.params;
+  try {
+    await pool.query(`DELETE FROM corridas WHERE id_corrida=$1`, [id_corrida]);
+    await pool.query(`DELETE FROM sesiones_activas WHERE id_corrida=$1`, [id_corrida]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Arrancar ─────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', async () => {
   try {

@@ -7,16 +7,11 @@
   <title>Monitor Lab Timer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&family=Roboto:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&family=Roboto:wght@400;600&family=Roboto+Mono:wght@400&display=swap" rel="stylesheet" />
   <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body {
-  width: 100%; min-height: 100%;
-  background: #f8fafc; font-family: 'Poppins', sans-serif;
-  overflow-x: hidden;
-}
+html, body { width: 100%; min-height: 100%; background: #f8fafc; font-family: 'Poppins', sans-serif; overflow-x: hidden; }
 
-/* ── Fondo de cuadrícula igual que pantalla home ── */
 .grid-background {
   position: fixed; top: 0; right: 0; bottom: 0; left: 0;
   z-index: 0; pointer-events: none;
@@ -28,70 +23,45 @@ html, body {
   mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 60%, transparent 100%);
 }
 
-/* ── Layout ── */
-.content {
-  position: relative; z-index: 1;
-  padding: 44px 24px 40px;
-  display: flex; flex-direction: column; align-items: center;
-}
+.content { position: relative; z-index: 1; padding: 44px 24px 40px; display: flex; flex-direction: column; align-items: center; }
 
-/* ── Header ── */
-.monitor-title {
-  font-family: 'Poppins', sans-serif; font-weight: 600;
-  font-size: 40px; color: #000; text-align: left;
-  width: 100%; max-width: 370px; line-height: 1.1;
-  margin-bottom: 8px;
-}
-.status-bar {
-  display: flex; align-items: center; gap: 8px;
-  width: 100%; max-width: 370px; margin-bottom: 28px;
-}
-.status-dot {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: #22c55e;
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
-}
-.status-text {
-  font-family: 'Roboto', sans-serif; font-weight: 400;
-  font-size: 14px; color: #666;
-}
+.monitor-title { font-weight: 600; font-size: 40px; color: #000; text-align: left; width: 100%; max-width: 370px; line-height: 1.1; margin-bottom: 8px; }
 
-/* ── Tarjeta de corrida ── */
+.status-bar { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 370px; margin-bottom: 6px; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.status-text { font-family: 'Roboto', sans-serif; font-size: 14px; color: #666; }
+
+.refresh-bar { width: 100%; max-width: 370px; display: flex; justify-content: flex-end; margin-bottom: 24px; }
+.refresh-text { font-family: 'Roboto', sans-serif; font-size: 13px; color: #aaa; }
+
+/* Tarjeta */
 .corrida-card {
-  width: 100%; max-width: 370px;
-  background: #fff; border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-  margin-bottom: 20px;
+  width: 100%; max-width: 370px; background: #fff; border-radius: 16px;
+  padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 20px;
 }
-.corrida-id {
-  font-family: 'Poppins', sans-serif; font-weight: 600;
-  font-size: 26px; color: #000; margin-bottom: 4px;
-}
-.corrida-inicio {
-  font-family: 'Roboto', sans-serif; font-weight: 400;
-  font-size: 14px; color: #888; margin-bottom: 16px;
-}
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+.corrida-id { font-weight: 600; font-size: 26px; color: #000; }
+.corrida-inicio { font-family: 'Roboto', sans-serif; font-size: 14px; color: #888; margin-bottom: 16px; }
 .corrida-warning {
-  font-family: 'Roboto', sans-serif; font-weight: 600;
-  font-size: 13px; color: #f59e0b;
-  background: #fef3c7; border-radius: 8px;
-  padding: 6px 12px; margin-bottom: 14px;
-  display: inline-block;
+  font-family: 'Roboto', sans-serif; font-weight: 600; font-size: 13px; color: #f59e0b;
+  background: #fef3c7; border-radius: 8px; padding: 6px 12px; margin-bottom: 14px; display: inline-block;
 }
 
-/* ── Filas de área ── */
+/* Botón eliminar */
+.btn-eliminar {
+  background: none; border: none; cursor: pointer;
+  font-size: 20px; padding: 4px; line-height: 1;
+  opacity: 0.5; transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-eliminar:active { opacity: 1; }
+
+/* Filas de área */
 .area-row {
-  display: flex; align-items: center;
-  justify-content: space-between;
-  height: 56px; border-radius: 10px;
-  padding: 0 16px; margin-bottom: 10px;
-  font-family: 'Poppins', sans-serif; font-weight: 600;
-  font-size: 18px; color: #000;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px; border-radius: 10px; padding: 0 16px; margin-bottom: 10px;
+  font-weight: 600; font-size: 18px; color: #000;
 }
 .area-row:last-child { margin-bottom: 0; }
 .area-pretratamiento { background: #E0D4E7; }
@@ -99,38 +69,23 @@ html, body {
 .area-mastermix      { background: #CCDCEB; }
 .area-amplificacion  { background: #EECEDA; }
 
-.area-right {
-  display: flex; align-items: center; gap: 8px;
-  font-family: 'Roboto', sans-serif; font-size: 14px; font-weight: 600;
-}
-.badge-activo {
-  background: #22c55e; color: #fff;
-  border-radius: 20px; padding: 3px 10px;
-  font-size: 13px;
-}
-.badge-vacio {
-  color: #aaa; font-weight: 400; font-size: 13px;
-}
+.area-right { display: flex; align-items: center; gap: 8px; }
+.badge-activo { background: #22c55e; color: #fff; border-radius: 20px; padding: 3px 10px; font-family: 'Roboto', sans-serif; font-size: 13px; font-weight: 600; }
+.badge-vacio  { color: #aaa; font-family: 'Roboto', sans-serif; font-size: 13px; font-weight: 400; }
+.cronometro-vivo { font-family: 'Roboto Mono', monospace; font-size: 17px; font-weight: 400; color: #1d1d1d; letter-spacing: 1px; }
 
-/* ── Estado vacío ── */
-.empty-state {
-  width: 100%; max-width: 370px;
-  text-align: center; padding: 60px 0;
-}
-.empty-state p {
-  font-family: 'Roboto', sans-serif; font-size: 18px; color: #999;
-}
+/* Modal eliminar */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal-overlay.hidden { display: none; }
+.modal-box { background: #fff; border-radius: 16px; padding: 36px 28px; width: 300px; text-align: center; display: flex; flex-direction: column; gap: 24px; }
+.modal-text { font-weight: 600; font-size: 20px; color: #000; line-height: 1.3; }
+.modal-buttons { display: flex; gap: 12px; justify-content: center; }
+.btn-modal { flex: 1; height: 52px; border: none; border-radius: 8px; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 18px; cursor: pointer; }
+.btn-cancel  { background: #d9d9d9; color: #000; }
+.btn-confirm { background: #ef4444; color: #fff; }
 
-/* ── Contador regresivo ── */
-.refresh-bar {
-  width: 100%; max-width: 370px;
-  display: flex; align-items: center;
-  justify-content: flex-end; gap: 6px;
-  margin-top: 4px; margin-bottom: 24px;
-}
-.refresh-text {
-  font-family: 'Roboto', sans-serif; font-size: 13px; color: #aaa;
-}
+.empty-state { width: 100%; max-width: 370px; text-align: center; padding: 60px 0; }
+.empty-state p { font-family: 'Roboto', sans-serif; font-size: 18px; color: #999; }
   </style>
 </head>
 <body>
@@ -147,10 +102,25 @@ html, body {
     <div id="corridas-container"></div>
   </div>
 
+  <!-- Modal confirmar eliminar -->
+  <div id="modal-eliminar" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p class="modal-text" id="modal-eliminar-text">¿Eliminar corrida?</p>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cancelarEliminar()">Cancelar</button>
+        <button class="btn-modal btn-confirm" onclick="confirmarEliminar()">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 const SERVER = 'https://lab-timersito-production.up.railway.app';
 let countdown = 10;
 let countdownInterval = null;
+let corridaPendienteEliminar = null;
+
+// Guarda hora_entrada de sesiones para calcular cronómetros
+let sesionesActivas = {};  // key: "id_corrida|area" → hora_entrada string
 
 const AREAS = [
   { key: 'pretratamiento', label: 'Pretratamiento', css: 'area-pretratamiento' },
@@ -159,52 +129,68 @@ const AREAS = [
   { key: 'amplificacion',  label: 'Amplificación',  css: 'area-amplificacion'  },
 ];
 
-async function fetchActivas() {
+// ── Fetch ────────────────────────────────────────────────────
+async function fetchMonitor() {
   try {
-    const r = await fetch(`${SERVER}/api/corridas/activas`);
+    const r = await fetch(`${SERVER}/api/monitor`);
     const data = await r.json();
-    renderCorridas(data);
-    document.getElementById('status-text').textContent =
-      `Última actualización: ${horaActual()}`;
+
+    // Actualizar mapa de sesiones activas
+    sesionesActivas = {};
+    for (const s of data.sesiones) {
+      const key = `${s.id_corrida}|${s.area}`;
+      sesionesActivas[key] = s.hora_entrada;
+    }
+
+    renderCorridas(data.corridas);
+    document.getElementById('status-text').textContent = `Última actualización: ${horaActual()}`;
   } catch (e) {
     document.getElementById('status-text').textContent = '⚠️ Sin conexión';
   }
 }
 
+// ── Render ───────────────────────────────────────────────────
 function renderCorridas(corridas) {
   const container = document.getElementById('corridas-container');
-
   if (!corridas.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <p>✅ No hay corridas activas</p>
-      </div>`;
+    container.innerHTML = `<div class="empty-state"><p>✅ No hay corridas activas</p></div>`;
     return;
   }
 
   container.innerHTML = corridas.map(c => {
-    // Detectar si tiene al menos un área capturada
-    const tieneActividad = AREAS.some(a => c[`an_${a.key}`]);
-    const horasDesdeInicio = calcularHorasDesdeInicio(c.hora_inicio);
-    const posibleOlvido = horasDesdeInicio > 12; // más de 12h sin finalizar
+    const horasDesde = calcularHorasDesde(c.hora_inicio);
+    const posibleOlvido = horasDesde > 12;
 
     const areasHTML = AREAS.map(a => {
-      const analista = c[`an_${a.key}`];
+      const anFin    = c[`an_${a.key}`];           // ya terminó (guardado en corridas)
+      const sesKey   = `${c.id_corrida}|${a.key}`; // en curso (sesiones_activas)
+      const enCurso  = sesionesActivas[sesKey];
+
+      let rightHTML;
+      if (anFin) {
+        // Ya terminó — badge verde con iniciales
+        rightHTML = `<span class="badge-activo">${anFin}</span>`;
+      } else if (enCurso) {
+        // En curso — solo cronómetro
+        const ms = calcularMs(enCurso);
+        rightHTML = `<span class="cronometro-vivo" id="crono-${c.id_corrida}-${a.key}">${formatMs(ms)}</span>`;
+      } else {
+        rightHTML = `<span class="badge-vacio">Sin iniciar</span>`;
+      }
+
       return `
         <div class="area-row ${a.css}">
           <span>${a.label}</span>
-          <div class="area-right">
-            ${analista
-              ? `<span class="badge-activo">${analista}</span>`
-              : `<span class="badge-vacio">Sin iniciar</span>`
-            }
-          </div>
+          <div class="area-right">${rightHTML}</div>
         </div>`;
     }).join('');
 
     return `
       <div class="corrida-card">
-        <div class="corrida-id">Corrida: ${c.id_corrida}</div>
+        <div class="card-header">
+          <div class="corrida-id">Corrida: ${c.id_corrida}</div>
+          <button class="btn-eliminar" onclick="pedirEliminar('${c.id_corrida}')">🗑️</button>
+        </div>
         <div class="corrida-inicio">Inicio: ${c.hora_inicio || '—'}</div>
         ${posibleOlvido ? `<div class="corrida-warning">⚠️ Más de 12h activa — ¿olvidaron Finalizar?</div>` : ''}
         ${areasHTML}
@@ -212,14 +198,44 @@ function renderCorridas(corridas) {
   }).join('');
 }
 
-function calcularHorasDesdeInicio(horaInicio) {
-  if (!horaInicio) return 0;
-  const [datePart, timePart] = horaInicio.trim().split(' ');
-  if (!datePart || !timePart) return 0;
+// ── Cronómetros vivos — tick cada segundo ────────────────────
+function tickCronometros() {
+  for (const [key, horaEntrada] of Object.entries(sesionesActivas)) {
+    const [idCorrida, area] = key.split('|');
+    const el = document.getElementById(`crono-${idCorrida}-${area}`);
+    if (el) {
+      const ms = calcularMs(horaEntrada);
+      el.textContent = formatMs(ms);
+    }
+  }
+}
+
+// ── Helpers de tiempo ────────────────────────────────────────
+function parseTS(ts) {
+  if (!ts) return null;
+  const [datePart, timePart] = ts.trim().split(' ');
+  if (!datePart || !timePart) return null;
   const [dd, mm, yyyy] = datePart.split('/');
-  const inicio = new Date(`${yyyy}-${mm}-${dd}T${timePart}`);
-  const ahora  = new Date();
-  return (ahora - inicio) / 3600000;
+  return new Date(`${yyyy}-${mm}-${dd}T${timePart}`);
+}
+
+function calcularMs(ts) {
+  const inicio = parseTS(ts);
+  if (!inicio || isNaN(inicio)) return 0;
+  return Math.max(0, Date.now() - inicio.getTime());
+}
+
+function calcularHorasDesde(ts) {
+  return calcularMs(ts) / 3600000;
+}
+
+function formatMs(ms) {
+  const totalSeg = Math.floor(ms / 1000);
+  const h  = Math.floor(totalSeg / 3600);
+  const m  = Math.floor((totalSeg % 3600) / 60);
+  const s  = totalSeg % 60;
+  const p  = n => String(n).padStart(2, '0');
+  return `${p(h)}:${p(m)}:${p(s)}`;
 }
 
 function horaActual() {
@@ -228,23 +244,52 @@ function horaActual() {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// ── Eliminar corrida ─────────────────────────────────────────
+function pedirEliminar(idCorrida) {
+  corridaPendienteEliminar = idCorrida;
+  document.getElementById('modal-eliminar-text').textContent =
+    `¿Eliminar corrida "${idCorrida}"? Esta acción no se puede deshacer.`;
+  document.getElementById('modal-eliminar').classList.remove('hidden');
+}
+
+function cancelarEliminar() {
+  corridaPendienteEliminar = null;
+  document.getElementById('modal-eliminar').classList.add('hidden');
+}
+
+async function confirmarEliminar() {
+  document.getElementById('modal-eliminar').classList.add('hidden');
+  if (!corridaPendienteEliminar) return;
+  try {
+    await fetch(`${SERVER}/api/corrida/${encodeURIComponent(corridaPendienteEliminar)}`, {
+      method: 'DELETE'
+    });
+    corridaPendienteEliminar = null;
+    fetchMonitor();
+  } catch (e) {
+    alert('Error al eliminar');
+  }
+}
+
+// ── Contador regresivo ───────────────────────────────────────
 function iniciarContador() {
   clearInterval(countdownInterval);
   countdown = 10;
   countdownInterval = setInterval(() => {
     countdown--;
-    document.getElementById('refresh-text').textContent =
-      `Próxima actualización: ${countdown}s`;
+    document.getElementById('refresh-text').textContent = `Próxima actualización: ${countdown}s`;
     if (countdown <= 0) {
-      fetchActivas();
+      fetchMonitor();
       countdown = 10;
     }
   }, 1000);
 }
 
-// Arrancar
-fetchActivas();
+// ── Arrancar ─────────────────────────────────────────────────
+fetchMonitor();
 iniciarContador();
+// Tick de cronómetros cada segundo (independiente del fetch)
+setInterval(tickCronometros, 1000);
 </script>
 </body>
 </html>

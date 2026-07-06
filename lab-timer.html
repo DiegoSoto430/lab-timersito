@@ -584,7 +584,7 @@ async function confirmarFinalizar() {
 // ============================================================
 // FLUJO: IR A CRONÓMETRO
 // ============================================================
-function goToTimer(area) {
+async function goToTimer(area) {
   // Verificar si el área está bloqueada para este usuario
   if (state.corridaInfo) {
     const colAn = {
@@ -596,7 +596,7 @@ function goToTimer(area) {
     const anArea = state.corridaInfo[colAn[area]];
     if (anArea && anArea !== state.usuario) {
       showToast(`⚠️ Esta área ya la captura ${anArea}`);
-      return; // No avanza
+      return;
     }
   }
   state.areaActual = area;
@@ -604,14 +604,30 @@ function goToTimer(area) {
     .replace('Extraccion','Extracción')
     .replace('Amplificacion','Amplificación');
   resetCronometro();
+  // Check-in: avisar al monitor que entramos al área
+  try {
+    await apiPost('/api/sesion/entrada', {
+      id_corrida: state.idCorrida,
+      area: area,
+      usuario: state.usuario
+    });
+  } catch(e) { /* no bloquear si falla */ }
   showScreen('screen-timer');
 }
 
 // ============================================================
 // MODAL: REGISTRAR TIEMPO
 // ============================================================
-function cancelarRegistro() {
+async function cancelarRegistro() {
   document.getElementById('modal-confirm').classList.add('hidden');
+  // Limpiar sesión activa aunque no se registre tiempo
+  try {
+    await fetch(`${SERVER}/api/sesion/salida`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_corrida: state.idCorrida, usuario: state.usuario })
+    });
+  } catch(e) { /* no bloquear si falla */ }
   resetCronometro();
 }
 
@@ -622,6 +638,15 @@ async function confirmarRegistro() {
       `/api/corrida/${encodeURIComponent(state.idCorrida)}/area`,
       { area: state.areaActual, horas: window._horasPendientes || 0, usuario: state.usuario }
     );
+    // Limpiar sesión activa
+    try {
+      await fetch(`${SERVER}/api/sesion/salida`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_corrida: state.idCorrida, usuario: state.usuario })
+      });
+    } catch(e) { /* no bloquear si falla */ }
+
     resetCronometro();
     // Refrescar badges
     const corridas = await apiGet('/api/corridas');
@@ -631,7 +656,6 @@ async function confirmarRegistro() {
     showScreen('screen-areas', 'back');
     setTimeout(() => showToast('✅ Tiempo registrado'), 50);
   } catch (e) {
-    // e.error contiene el mensaje del servidor
     const msg = e?.error || '⚠️ Error al guardar';
     resetCronometro();
     showScreen('screen-areas', 'back');
