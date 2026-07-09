@@ -199,7 +199,7 @@ app.get('/api/corridas/csv', async (req, res) => {
 app.get('/api/corridas/activas', async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT id_corrida, hora_inicio,
+      SELECT id_corrida, fecha, hora_inicio,
              an_pretratamiento, an_extraccion, an_mastermix, an_amplificacion
       FROM corridas
       WHERE hora_fin IS NULL OR hora_fin = ''

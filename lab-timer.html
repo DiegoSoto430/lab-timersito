@@ -130,6 +130,62 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
 }
 .btn-finalizar:active { background: #3a3a3a; }
 
+/* ========== ID CORRIDA: TABS (Nueva / Abiertas) ========== */
+.id-content { padding-bottom: 120px; } /* espacio para no chocar con bottom nav */
+.id-tab-panel { display: none; width: 100%; flex-direction: column; align-items: center; }
+.id-tab-panel.active { display: flex; }
+
+/* ---- Panel Abiertas ---- */
+.abiertas-wrapper { width: 330px; display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
+.abiertas-empty, .abiertas-loading {
+  font-family: 'Roboto', sans-serif; font-size: 16px; color: #888; text-align: center; margin-top: 24px;
+}
+.btn-corrida-abierta {
+  width: 100%; text-align: left; border: none; border-radius: 12px; padding: 14px 16px;
+  background: #E8ECF3; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  display: flex; flex-direction: column; gap: 4px; transition: filter 0.15s;
+}
+.btn-corrida-abierta:active { filter: brightness(0.94); }
+.btn-corrida-abierta.atrasada { background: #F7E3D9; }
+.abierta-id { font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 22px; color: #000; }
+.abierta-meta { font-family: 'Roboto', sans-serif; font-size: 13px; color: #555; }
+.abierta-flag {
+  display: inline-block; margin-top: 2px; font-family: 'Roboto', sans-serif; font-weight: 600;
+  font-size: 12px; color: #a1531f; background: #f2c9a8; padding: 2px 8px; border-radius: 20px; width: fit-content;
+}
+
+/* ========== BOTTOM NAV (efecto blob) ========== */
+.id-bottom-nav {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  width: 260px; height: 68px; background: #fff; border-radius: 34px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.14);
+  display: flex; z-index: 60;
+}
+.nav-blob {
+  position: absolute; top: -16px; left: 18px; width: 58px; height: 58px; border-radius: 50%;
+  background: #fff; box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+  transition: left 0.38s cubic-bezier(.34,1.56,.64,1);
+  z-index: 1;
+}
+.nav-item {
+  position: relative; z-index: 2; flex: 1; background: none; border: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.nav-icon-wrap {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.38s cubic-bezier(.34,1.56,.64,1);
+}
+.nav-item.active .nav-icon-wrap { transform: translateY(-16px); }
+.nav-icon-wrap svg { width: 22px; height: 22px; stroke: #9a9a9a; fill: none; stroke-width: 2; transition: stroke 0.3s; }
+.nav-item.active .nav-icon-wrap svg { stroke: #2563eb; }
+.nav-label { font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 600; color: #9a9a9a; transition: color 0.3s; }
+.nav-item.active .nav-label { color: #2563eb; }
+
+/* ========== MODAL ERROR DE FORMATO ========== */
+.modal-box.modal-error { border-top: 6px solid #d64545; }
+.modal-error-icon { font-size: 40px; }
+
 /* ========== PANTALLA 3: ÁREAS ========== */
 .areas-header { display: flex; align-items: center; padding: 44px 24px 24px 16px; gap: 8px; }
 .btn-back {
@@ -266,13 +322,53 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
       <button class="btn-back" onclick="showScreen('screen-home', 'back')">←</button>
     </div>
     <div class="id-content">
-      <h2 class="greeting">Hola, <span id="user-name">Estefany</span>!</h2>
-      <p class="id-label">Escribe el ID de corrida que deseas capturar</p>
-      <input type="text" id="corrida-input" class="corrida-input" autocomplete="off" name="text" placeholder="ID Corrida" />
-      <div class="id-action-buttons">
-        <button class="btn-comenzar" onclick="goToAreas()">Comenzar</button>
-        <button class="btn-finalizar" onclick="finalizarCorrida()">Finalizar</button>
+      <!-- ---- TAB: NUEVA ---- -->
+      <div id="tab-nueva" class="id-tab-panel active">
+        <h2 class="greeting">Hola, <span id="user-name">Estefany</span>!</h2>
+        <p class="id-label">Escribe el ID de corrida que deseas capturar</p>
+        <input
+          type="text"
+          id="corrida-input"
+          class="corrida-input"
+          autocomplete="off"
+          name="text"
+          placeholder="ID Corrida"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          maxlength="4"
+          oninput="this.value = this.value.replace(/[^0-9]/g,'').slice(0,4)"
+        />
+        <div class="id-action-buttons">
+          <button class="btn-comenzar" onclick="goToAreas()">Comenzar</button>
+          <button class="btn-finalizar" onclick="finalizarCorrida()">Finalizar</button>
+        </div>
       </div>
+
+      <!-- ---- TAB: ABIERTAS ---- -->
+      <div id="tab-abiertas" class="id-tab-panel">
+        <h2 class="greeting" style="font-size:40px;">Corridas abiertas</h2>
+        <p class="id-label">Toca una corrida para continuar capturando</p>
+        <div class="abiertas-wrapper" id="abiertas-wrapper">
+          <p class="abiertas-loading">Cargando...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- BOTTOM NAV ---- -->
+    <div class="id-bottom-nav">
+      <div class="nav-blob" id="nav-blob"></div>
+      <button class="nav-item active" id="nav-item-nueva" onclick="switchIdTab('nueva')">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+        </div>
+        <span class="nav-label">Nueva</span>
+      </button>
+      <button class="nav-item" id="nav-item-abiertas" onclick="switchIdTab('abiertas')">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="nav-label">Abiertas</span>
+      </button>
     </div>
   </div>
 
@@ -339,6 +435,17 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
       <div class="modal-buttons">
         <button class="btn-modal btn-cancel" onclick="cancelarFinalizar()">Cancelar</button>
         <button class="btn-modal btn-confirm" onclick="confirmarFinalizar()">Finalizar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: ERROR DE FORMATO ID CORRIDA ===== -->
+  <div id="modal-error-formato" class="modal-overlay hidden">
+    <div class="modal-box modal-error">
+      <div class="modal-error-icon">⚠️</div>
+      <p class="modal-text">El ID de corrida debe tener exactamente 4 dígitos numéricos.</p>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-confirm" onclick="closeFormatError()">Entendido</button>
       </div>
     </div>
   </div>
@@ -502,7 +609,83 @@ function selectUser(usuario, nombre) {
   state.nombre = nombre;
   document.getElementById('user-name').textContent = nombre;
   document.getElementById('corrida-input').value = '';
+  switchIdTab('nueva'); // siempre entra mostrando "Nueva"
   showScreen('screen-id');
+}
+
+// ============================================================
+// VALIDACIÓN DE FORMATO — ID CORRIDA (4 dígitos numéricos)
+// ============================================================
+const CORRIDA_REGEX = /^[0-9]{4}$/;
+
+function showFormatError() {
+  document.getElementById('modal-error-formato').classList.remove('hidden');
+}
+
+function closeFormatError() {
+  document.getElementById('modal-error-formato').classList.add('hidden');
+}
+
+// ============================================================
+// TABS PANTALLA ID CORRIDA (Nueva / Abiertas) — bottom nav blob
+// ============================================================
+function switchIdTab(tab) {
+  const isNueva = tab === 'nueva';
+
+  document.getElementById('tab-nueva').classList.toggle('active', isNueva);
+  document.getElementById('tab-abiertas').classList.toggle('active', !isNueva);
+  document.getElementById('nav-item-nueva').classList.toggle('active', isNueva);
+  document.getElementById('nav-item-abiertas').classList.toggle('active', !isNueva);
+
+  // Mover el "blob" del bottom nav a la posición del tab activo
+  const blob = document.getElementById('nav-blob');
+  blob.style.left = isNueva ? '18px' : '184px';
+
+  if (!isNueva) loadCorridasAbiertas();
+}
+
+// ============================================================
+// PANEL "ABIERTAS" — listar corridas sin finalizar
+// ============================================================
+function todayStrClient() {
+  // Hermosillo es UTC-7 fijo (sin horario de verano), igual que el servidor
+  const ahora = new Date(Date.now() - 7 * 60 * 60 * 1000);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(ahora.getUTCDate())}/${p(ahora.getUTCMonth() + 1)}/${ahora.getUTCFullYear()}`;
+}
+
+async function loadCorridasAbiertas() {
+  const wrapper = document.getElementById('abiertas-wrapper');
+  wrapper.innerHTML = '<p class="abiertas-loading">Cargando...</p>';
+  try {
+    const abiertas = await apiGet('/api/corridas/activas');
+    if (!abiertas.length) {
+      wrapper.innerHTML = '<p class="abiertas-empty">No hay corridas abiertas por el momento.</p>';
+      return;
+    }
+    const hoy = todayStrClient();
+    wrapper.innerHTML = '';
+    abiertas.forEach(c => {
+      const esDeHoy = c.fecha === hoy;
+      const btn = document.createElement('button');
+      btn.className = 'btn-corrida-abierta' + (esDeHoy ? '' : ' atrasada');
+      btn.onclick = () => selectCorridaAbierta(c.id_corrida);
+      btn.innerHTML = `
+        <span class="abierta-id">Corrida ${c.id_corrida}</span>
+        <span class="abierta-meta">Inicio: ${c.hora_inicio || '—'}${c.fecha ? ' · ' + c.fecha : ''}</span>
+        ${esDeHoy ? '' : '<span class="abierta-flag">⚠ Sin finalizar de días anteriores</span>'}
+      `;
+      wrapper.appendChild(btn);
+    });
+  } catch (e) {
+    wrapper.innerHTML = '<p class="abiertas-empty">⚠️ Sin conexión al servidor</p>';
+  }
+}
+
+function selectCorridaAbierta(id) {
+  document.getElementById('corrida-input').value = id;
+  switchIdTab('nueva');
+  goToAreas();
 }
 
 // ============================================================
@@ -536,6 +719,7 @@ function actualizarBadges(corrida) {
 async function goToAreas() {
   const val = document.getElementById('corrida-input').value.trim();
   if (!val) { showToast('⚠️ Escribe el ID de corrida'); return; }
+  if (!CORRIDA_REGEX.test(val)) { showFormatError(); return; }
   state.idCorrida = val;
 
   try {
@@ -558,6 +742,7 @@ async function goToAreas() {
 function finalizarCorrida() {
   const val = document.getElementById('corrida-input').value.trim();
   if (!val) { showToast('⚠️ Escribe el ID de corrida'); return; }
+  if (!CORRIDA_REGEX.test(val)) { showFormatError(); return; }
   state.idCorrida = val;
 
   document.getElementById('modal-finalizar-text').textContent =
