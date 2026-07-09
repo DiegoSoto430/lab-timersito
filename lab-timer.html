@@ -162,7 +162,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
   display: flex; z-index: 60;
 }
 .nav-blob {
-  position: absolute; top: -16px; left: 18px; width: 58px; height: 58px; border-radius: 50%;
+  position: absolute; top: -16px; left: 36px; width: 58px; height: 58px; border-radius: 50%;
   background: #fff; box-shadow: 0 8px 18px rgba(0,0,0,0.18);
   transition: left 0.38s cubic-bezier(.34,1.56,.64,1);
   z-index: 1;
@@ -637,9 +637,12 @@ function switchIdTab(tab) {
   document.getElementById('nav-item-nueva').classList.toggle('active', isNueva);
   document.getElementById('nav-item-abiertas').classList.toggle('active', !isNueva);
 
+  // Quitar foco del input para que no bloquee la navegación
+  document.getElementById('corrida-input').blur();
+
   // Mover el "blob" del bottom nav a la posición del tab activo
   const blob = document.getElementById('nav-blob');
-  blob.style.left = isNueva ? '18px' : '184px';
+  blob.style.left = isNueva ? '36px' : '166px';
 
   if (!isNueva) loadCorridasAbiertas();
 }
@@ -682,10 +685,18 @@ async function loadCorridasAbiertas() {
   }
 }
 
-function selectCorridaAbierta(id) {
-  document.getElementById('corrida-input').value = id;
-  switchIdTab('nueva');
-  goToAreas();
+async function selectCorridaAbierta(id) {
+  // Ir directo a áreas sin tocar el input ni hacer animación
+  state.idCorrida = id;
+  try {
+    await apiPost('/api/corrida', { id_corrida: id, usuario: state.usuario });
+    const corridas = await apiGet('/api/corridas');
+    state.corridaInfo = corridas.find(c => c.id_corrida === id) || null;
+    if (state.corridaInfo) actualizarBadges(state.corridaInfo);
+    showScreen('screen-areas');
+  } catch (e) {
+    showToast('⚠️ Sin conexión al servidor');
+  }
 }
 
 // ============================================================
