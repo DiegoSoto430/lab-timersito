@@ -162,7 +162,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
   display: flex; z-index: 60;
 }
 .nav-blob {
-  position: absolute; top: -16px; left: 36px; width: 58px; height: 58px; border-radius: 50%;
+  position: absolute; top: -16px; left: 18px; width: 58px; height: 58px; border-radius: 50%;
   background: #fff; box-shadow: 0 8px 18px rgba(0,0,0,0.18);
   transition: left 0.38s cubic-bezier(.34,1.56,.64,1);
   z-index: 1;
@@ -176,7 +176,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
   transition: transform 0.38s cubic-bezier(.34,1.56,.64,1);
 }
-.nav-item.active .nav-icon-wrap { transform: translateY(-12px); }
+.nav-item.active .nav-icon-wrap { transform: translateY(-16px); }
 .nav-icon-wrap svg { width: 22px; height: 22px; stroke: #9a9a9a; fill: none; stroke-width: 2; transition: stroke 0.3s; }
 .nav-item.active .nav-icon-wrap svg { stroke: #2563eb; }
 .nav-label { font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 600; color: #9a9a9a; transition: color 0.3s; }
@@ -506,43 +506,63 @@ async function apiGet(url) {
 // CRONÓMETRO
 // ============================================================
 let stopwatchInterval = null;
-let runningTime = 0;
 let isRunning = false;
+const TIMER_KEY = 'lab_timer_start'; // clave en localStorage
 
+// ── Iniciar ──────────────────────────────────────────────────
 function iniciarCronometro() {
   if (isRunning) return;
   isRunning = true;
+
+  // Guardar timestamp de inicio en localStorage para sobrevivir bloqueo de pantalla
+  const ahora = Date.now();
+  localStorage.setItem(TIMER_KEY, ahora);
+
+  arrancarDisplay(ahora);
+  document.getElementById('btn-iniciar').disabled = true;
+}
+
+// ── Arranca el display desde un timestamp dado ───────────────
+function arrancarDisplay(startTimestamp) {
+  clearInterval(stopwatchInterval);
 
   const sphere = document.getElementById('seconds-sphere');
   sphere.style.animation = 'rotacion 60s linear infinite';
   sphere.style.animationPlayState = 'running';
 
-  const startTime = Date.now() - runningTime;
   stopwatchInterval = setInterval(() => {
-    runningTime = Date.now() - startTime;
-    document.getElementById('stopwatch').textContent = calcularTiempo(runningTime);
+    const ms = Date.now() - startTimestamp;
+    document.getElementById('stopwatch').textContent = calcularTiempo(ms);
   }, 1000);
 
-  document.getElementById('btn-iniciar').disabled = true;
+  // Mostrar tiempo actual inmediatamente
+  const ms = Date.now() - startTimestamp;
+  document.getElementById('stopwatch').textContent = calcularTiempo(ms);
 }
 
+// ── Fin ──────────────────────────────────────────────────────
 function finCronometro() {
-  if (!isRunning && runningTime === 0) return;
+  const startTimestamp = parseInt(localStorage.getItem(TIMER_KEY) || '0');
+  if (!isRunning && !startTimestamp) return;
+
   clearInterval(stopwatchInterval);
   isRunning = false;
   document.getElementById('seconds-sphere').style.animationPlayState = 'paused';
 
-  const horas = runningTime / 3600000;
+  // Tiempo real = ahora - cuando se presionó Iniciar (aunque el intervalo se congelara)
+  const ms = startTimestamp ? Date.now() - startTimestamp : 0;
+  const horas = ms / 3600000;
   window._horasPendientes = horas;
 
   document.getElementById('modal-text').textContent = `¿Registrar ${formatearHoras(horas)}?`;
   document.getElementById('modal-confirm').classList.remove('hidden');
 }
 
+// ── Reset ────────────────────────────────────────────────────
 function resetCronometro() {
   clearInterval(stopwatchInterval);
   isRunning = false;
-  runningTime = 0;
+  localStorage.removeItem(TIMER_KEY);
   document.getElementById('stopwatch').textContent = '00:00';
   document.getElementById('btn-iniciar').disabled = false;
   const sphere = document.getElementById('seconds-sphere');
@@ -550,11 +570,26 @@ function resetCronometro() {
   void sphere.offsetWidth;
 }
 
+// ── Reanudar si vuelven a la app con timer activo ────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const startTimestamp = parseInt(localStorage.getItem(TIMER_KEY) || '0');
+    if (startTimestamp && isRunning) {
+      // Reanuda el display desde el timestamp original
+      arrancarDisplay(startTimestamp);
+    }
+  }
+});
+
 function calcularTiempo(ms) {
   const s = Math.floor(ms / 1000);
-  const min = Math.floor(s / 60).toString().padStart(2, '0');
-  const seg = (s % 60).toString().padStart(2, '0');
-  return `${min}:${seg}`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const seg = s % 60;
+  const p = n => String(n).padStart(2, '0');
+  // Mostrar horas solo si ya pasó 1 hora
+  if (h > 0) return `${p(h)}:${p(m)}:${p(seg)}`;
+  return `${p(m)}:${p(seg)}`;
 }
 
 function formatearHoras(h) {
@@ -637,12 +672,9 @@ function switchIdTab(tab) {
   document.getElementById('nav-item-nueva').classList.toggle('active', isNueva);
   document.getElementById('nav-item-abiertas').classList.toggle('active', !isNueva);
 
-  // Quitar foco del input para que no bloquee la navegación
-  document.getElementById('corrida-input').blur();
-
   // Mover el "blob" del bottom nav a la posición del tab activo
   const blob = document.getElementById('nav-blob');
-  blob.style.left = isNueva ? '36px' : '166px';
+  blob.style.left = isNueva ? '18px' : '184px';
 
   if (!isNueva) loadCorridasAbiertas();
 }
@@ -685,18 +717,10 @@ async function loadCorridasAbiertas() {
   }
 }
 
-async function selectCorridaAbierta(id) {
-  // Ir directo a áreas sin tocar el input ni hacer animación
-  state.idCorrida = id;
-  try {
-    await apiPost('/api/corrida', { id_corrida: id, usuario: state.usuario });
-    const corridas = await apiGet('/api/corridas');
-    state.corridaInfo = corridas.find(c => c.id_corrida === id) || null;
-    if (state.corridaInfo) actualizarBadges(state.corridaInfo);
-    showScreen('screen-areas');
-  } catch (e) {
-    showToast('⚠️ Sin conexión al servidor');
-  }
+function selectCorridaAbierta(id) {
+  document.getElementById('corrida-input').value = id;
+  switchIdTab('nueva');
+  goToAreas();
 }
 
 // ============================================================
