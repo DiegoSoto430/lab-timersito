@@ -16,10 +16,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
 // ── Conexión a Supabase via PostgreSQL ───────────────────────
+// Parsear DATABASE_URL y forzar IPv4
+const connStr = process.env.DATABASE_URL || '';
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  family: 4  // forzar IPv4, Supabase no acepta IPv6
+  connectionString: connStr.includes('?') ? connStr + '&family=4' : connStr + '?family=4',
+  ssl: { rejectUnauthorized: false }
 });
 
 // ── Helpers de fecha (zona horaria Hermosillo, UTC-7 fijo) ───
