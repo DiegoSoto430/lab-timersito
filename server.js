@@ -1,11 +1,11 @@
 // ============================================================
-// server.js — Lab Timer v3 (Railway + Supabase/PostgreSQL)
+// server.js — Lab Timer v4 (Supabase JS client, sin pg directo)
 // ============================================================
-const express = require('express');
-const cors    = require('cors');
-const path    = require('path');
-const os      = require('os');
-const { Pool } = require('pg');
+const express      = require('express');
+const cors         = require('cors');
+const path         = require('path');
+const os           = require('os');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app  = express();
@@ -15,39 +15,26 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// ── Conexión a Supabase via PostgreSQL ───────────────────────
-// Parsear DATABASE_URL manualmente para forzar IPv4
-const connStr = process.env.DATABASE_URL || '';
-const connUrl = new URL(connStr);
-const pool = new Pool({
-  host:     connUrl.hostname,
-  port:     parseInt(connUrl.port) || 5432,
-  user:     decodeURIComponent(connUrl.username),
-  password: decodeURIComponent(connUrl.password),
-  database: connUrl.pathname.replace('/', ''),
-  ssl:      { rejectUnauthorized: false },
-  family:   4   // forzar IPv4 explícitamente
-});
+// ── Conexión a Supabase via supabase-js ──────────────────────
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-// ── Helpers de fecha (zona horaria Hermosillo, UTC-7 fijo) ───
+// ── Helpers de fecha (Hermosillo UTC-7 fijo) ─────────────────
 function horaHermosillo() {
-  // Hermosillo no tiene horario de verano: siempre UTC-7
-  const ahora = new Date();
-  return new Date(ahora.getTime() - 7 * 60 * 60 * 1000);
+  return new Date(Date.now() - 7 * 60 * 60 * 1000);
 }
-
 function nowStr() {
   const d = horaHermosillo();
   const p = n => String(n).padStart(2, '0');
   return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
-
 function todayStr() {
   const d = horaHermosillo();
   const p = n => String(n).padStart(2, '0');
   return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)}/${d.getUTCFullYear()}`;
 }
-
 function parseTS(ts) {
   if (!ts) return null;
   const [datePart, timePart] = ts.trim().split(' ');
@@ -56,23 +43,23 @@ function parseTS(ts) {
   return new Date(`${yyyy}-${mm}-${dd}T${timePart}`);
 }
 
-// ── POST /api/corrida — Crear si no existe ───────────────────
+// ── POST /api/corrida ────────────────────────────────────────
 app.post('/api/corrida', async (req, res) => {
   const { id_corrida, usuario } = req.body;
   if (!id_corrida || !usuario)
     return res.status(400).json({ error: 'Faltan campos' });
-
   try {
-    const existe = await pool.query(
-      `SELECT id FROM corridas WHERE id_corrida = $1 LIMIT 1`,
-      [id_corrida]
-    );
-    if (existe.rows.length === 0) {
-      await pool.query(
-        `INSERT INTO corridas (id_corrida, fecha, hora_inicio)
-         VALUES ($1, $2, $3)`,
-        [id_corrida, todayStr(), nowStr()]
-      );
+    const { data: existe } = await supabase
+      .from('corridas')
+      .select('id')
+      .eq('id_corrida', id_corrida)
+      .limit(1);
+
+    if (!existe || existe.length === 0) {
+      const { error } = await supabase.from('corridas').insert({
+        id_corrida, fecha: todayStr(), hora_inicio: nowStr()
+      });
+      if (error) throw error;
       return res.json({ ok: true, nueva: true });
     }
     res.json({ ok: true, nueva: false });
@@ -86,26 +73,29 @@ app.post('/api/corrida', async (req, res) => {
 app.patch('/api/corrida/:id_corrida/finalizar', async (req, res) => {
   const { id_corrida } = req.params;
   try {
-    const r = await pool.query(
-      `SELECT hora_inicio FROM corridas WHERE id_corrida = $1 LIMIT 1`,
-      [id_corrida]
-    );
-    if (!r.rows.length)
+    const { data, error } = await supabase
+      .from('corridas')
+      .select('hora_inicio')
+      .eq('id_corrida', id_corrida)
+      .limit(1);
+    if (error) throw error;
+    if (!data || !data.length)
       return res.status(404).json({ error: 'Corrida no encontrada' });
 
     const finStr = nowStr();
     let tiempoTotal = 0;
-    const inicio  = parseTS(r.rows[0].hora_inicio);
+    const inicio  = parseTS(data[0].hora_inicio);
     const finDate = parseTS(finStr);
     if (inicio && finDate && !isNaN(inicio) && !isNaN(finDate)) {
       tiempoTotal = (finDate - inicio) / 3600000;
     }
 
-    await pool.query(
-      `UPDATE corridas SET hora_fin = $1, tiempo_total = $2
-       WHERE id_corrida = $3`,
-      [finStr, tiempoTotal, id_corrida]
-    );
+    const { error: e2 } = await supabase
+      .from('corridas')
+      .update({ hora_fin: finStr, tiempo_total: tiempoTotal })
+      .eq('id_corrida', id_corrida);
+    if (e2) throw e2;
+
     res.json({ ok: true, hora_fin: finStr, tiempo_total: tiempoTotal });
   } catch (e) {
     console.error('PATCH finalizar:', e.message);
@@ -140,25 +130,29 @@ app.patch('/api/corrida/:id_corrida/area', async (req, res) => {
   if (!ct) return res.status(400).json({ error: `Area invalida: "${area}"` });
 
   try {
-    const r = await pool.query(
-      `SELECT ${ct}, ${ca} FROM corridas WHERE id_corrida = $1 LIMIT 1`,
-      [id_corrida]
-    );
-    if (!r.rows.length)
+    const { data, error } = await supabase
+      .from('corridas')
+      .select(`${ct}, ${ca}`)
+      .eq('id_corrida', id_corrida)
+      .limit(1);
+    if (error) throw error;
+    if (!data || !data.length)
       return res.status(404).json({ error: 'Corrida no encontrada' });
 
-    const anActual = r.rows[0][ca];
+    const anActual = data[0][ca];
     if (anActual && anActual !== '' && anActual !== usuario) {
       return res.status(409).json({
         error: `El area ${area} ya fue capturada por ${anActual}`
       });
     }
 
-    const nuevoTiempo = (parseFloat(r.rows[0][ct]) || 0) + horas;
-    await pool.query(
-      `UPDATE corridas SET ${ct} = $1, ${ca} = $2 WHERE id_corrida = $3`,
-      [nuevoTiempo, usuario, id_corrida]
-    );
+    const nuevoTiempo = (parseFloat(data[0][ct]) || 0) + horas;
+    const { error: e2 } = await supabase
+      .from('corridas')
+      .update({ [ct]: nuevoTiempo, [ca]: usuario })
+      .eq('id_corrida', id_corrida);
+    if (e2) throw e2;
+
     res.json({ ok: true, tiempo_acumulado: nuevoTiempo });
   } catch (e) {
     console.error('PATCH area:', e.message);
@@ -169,8 +163,12 @@ app.patch('/api/corrida/:id_corrida/area', async (req, res) => {
 // ── GET /api/corridas ────────────────────────────────────────
 app.get('/api/corridas', async (req, res) => {
   try {
-    const r = await pool.query(`SELECT * FROM corridas ORDER BY id DESC`);
-    res.json(r.rows);
+    const { data, error } = await supabase
+      .from('corridas')
+      .select('*')
+      .order('id', { ascending: false });
+    if (error) throw error;
+    res.json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -179,13 +177,18 @@ app.get('/api/corridas', async (req, res) => {
 // ── GET /api/corridas/csv ────────────────────────────────────
 app.get('/api/corridas/csv', async (req, res) => {
   try {
-    const r = await pool.query(`SELECT * FROM corridas ORDER BY id DESC`);
+    const { data, error } = await supabase
+      .from('corridas')
+      .select('*')
+      .order('id', { ascending: false });
+    if (error) throw error;
+
     const header = [
       'ID','ID Corrida','Fecha','Hora Inicio','Hora Fin','Tiempo Total (h)',
       'Pretratamiento (h)','Extraccion (h)','Mastermix (h)','Amplificacion (h)',
       'AnPretratamiento','AnExtraccion','AnMastermix','AnAmplificacion'
     ].join(',');
-    const lines = r.rows.map(row => [
+    const lines = data.map(row => [
       row.id, row.id_corrida, row.fecha, row.hora_inicio, row.hora_fin,
       Number(row.tiempo_total).toFixed(4),
       Number(row.tiempo_pretratamiento).toFixed(4),
@@ -203,39 +206,36 @@ app.get('/api/corridas/csv', async (req, res) => {
   }
 });
 
-// ── GET /api/corridas/activas — Sin hora_fin ────────────────
+// ── GET /api/corridas/activas ────────────────────────────────
 app.get('/api/corridas/activas', async (req, res) => {
   try {
-    const r = await pool.query(`
-      SELECT id_corrida, fecha, hora_inicio,
-             an_pretratamiento, an_extraccion, an_mastermix, an_amplificacion
-      FROM corridas
-      WHERE hora_fin IS NULL OR hora_fin = ''
-      ORDER BY id DESC
-    `);
-    res.json(r.rows);
+    const { data, error } = await supabase
+      .from('corridas')
+      .select('id_corrida, fecha, hora_inicio, an_pretratamiento, an_extraccion, an_mastermix, an_amplificacion')
+      .or('hora_fin.is.null,hora_fin.eq.')
+      .order('id', { ascending: false });
+    if (error) throw error;
+    res.json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// ── POST /api/sesion/entrada — Registrar entrada a área ─────
+// ── POST /api/sesion/entrada ─────────────────────────────────
 app.post('/api/sesion/entrada', async (req, res) => {
   const { id_corrida, area, usuario } = req.body;
   if (!id_corrida || !area || !usuario)
     return res.status(400).json({ error: 'Faltan campos' });
   try {
-    // Borrar sesión previa de este usuario en cualquier área de esta corrida
-    await pool.query(
-      `DELETE FROM sesiones_activas WHERE id_corrida=$1 AND usuario=$2`,
-      [id_corrida, usuario]
-    );
-    // Registrar nueva entrada
-    await pool.query(
-      `INSERT INTO sesiones_activas (id_corrida, area, usuario, hora_entrada)
-       VALUES ($1, $2, $3, $4)`,
-      [id_corrida, area, usuario, nowStr()]
-    );
+    await supabase.from('sesiones_activas')
+      .delete()
+      .eq('id_corrida', id_corrida)
+      .eq('usuario', usuario);
+
+    const { error } = await supabase.from('sesiones_activas').insert({
+      id_corrida, area, usuario, hora_entrada: nowStr()
+    });
+    if (error) throw error;
     res.json({ ok: true });
   } catch (e) {
     console.error('POST sesion/entrada:', e.message);
@@ -243,16 +243,17 @@ app.post('/api/sesion/entrada', async (req, res) => {
   }
 });
 
-// ── DELETE /api/sesion/salida — Limpiar sesión al confirmar ─
+// ── DELETE /api/sesion/salida ────────────────────────────────
 app.delete('/api/sesion/salida', async (req, res) => {
   const { id_corrida, usuario } = req.body;
   if (!id_corrida || !usuario)
     return res.status(400).json({ error: 'Faltan campos' });
   try {
-    await pool.query(
-      `DELETE FROM sesiones_activas WHERE id_corrida=$1 AND usuario=$2`,
-      [id_corrida, usuario]
-    );
+    const { error } = await supabase.from('sesiones_activas')
+      .delete()
+      .eq('id_corrida', id_corrida)
+      .eq('usuario', usuario);
+    if (error) throw error;
     res.json({ ok: true });
   } catch (e) {
     console.error('DELETE sesion/salida:', e.message);
@@ -260,31 +261,34 @@ app.delete('/api/sesion/salida', async (req, res) => {
   }
 });
 
-// ── GET /api/monitor — Corridas activas + sesiones en curso ─
+// ── GET /api/monitor ─────────────────────────────────────────
 app.get('/api/monitor', async (req, res) => {
   try {
-    const corridas = await pool.query(`
-      SELECT id_corrida, hora_inicio,
-             an_pretratamiento, an_extraccion, an_mastermix, an_amplificacion
-      FROM corridas
-      WHERE hora_fin IS NULL OR hora_fin = ''
-      ORDER BY id DESC
-    `);
-    const sesiones = await pool.query(
-      `SELECT id_corrida, area, usuario, hora_entrada FROM sesiones_activas`
-    );
-    res.json({ corridas: corridas.rows, sesiones: sesiones.rows });
+    const { data: corridas, error: e1 } = await supabase
+      .from('corridas')
+      .select('id_corrida, hora_inicio, an_pretratamiento, an_extraccion, an_mastermix, an_amplificacion')
+      .or('hora_fin.is.null,hora_fin.eq.')
+      .order('id', { ascending: false });
+    if (e1) throw e1;
+
+    const { data: sesiones, error: e2 } = await supabase
+      .from('sesiones_activas')
+      .select('id_corrida, area, usuario, hora_entrada');
+    if (e2) throw e2;
+
+    res.json({ corridas, sesiones });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// ── DELETE /api/corrida/:id_corrida — Eliminar corrida ──────
+// ── DELETE /api/corrida/:id_corrida ──────────────────────────
 app.delete('/api/corrida/:id_corrida', async (req, res) => {
   const { id_corrida } = req.params;
   try {
-    await pool.query(`DELETE FROM corridas WHERE id_corrida=$1`, [id_corrida]);
-    await pool.query(`DELETE FROM sesiones_activas WHERE id_corrida=$1`, [id_corrida]);
+    await supabase.from('sesiones_activas').delete().eq('id_corrida', id_corrida);
+    const { error } = await supabase.from('corridas').delete().eq('id_corrida', id_corrida);
+    if (error) throw error;
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -294,8 +298,9 @@ app.delete('/api/corrida/:id_corrida', async (req, res) => {
 // ── Arrancar ─────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', async () => {
   try {
-    await pool.query('SELECT 1');
-    console.log('✅ Conectado a Supabase (PostgreSQL)');
+    const { error } = await supabase.from('corridas').select('id').limit(1);
+    if (error) throw error;
+    console.log('✅ Conectado a Supabase');
   } catch (e) {
     console.error('❌ Error conectando a Supabase:', e.message);
   }
