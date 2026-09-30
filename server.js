@@ -6,6 +6,7 @@ const cors         = require('cors');
 const path         = require('path');
 const os           = require('os');
 const { createClient } = require('@supabase/supabase-js');
+const { construirLibro } = require('./exportar');
 require('dotenv').config();
 
 const app  = express();
@@ -149,6 +150,62 @@ app.patch('/api/casos/:no_caso/reportar', async (req, res) => {
     res.json({ ok: true, emision: data[0].emision });
   } catch (e) {
     console.error('PATCH casos/reportar:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Exportaciones ────────────────────────────────────────────
+// Trae TODAS las filas de una tabla (Supabase devuelve máx. 1000 por consulta)
+async function traerTodo(tabla) {
+  const PASO = 1000;
+  const filas = [];
+  for (let desde = 0; ; desde += PASO) {
+    const { data, error } = await supabase
+      .from(tabla)
+      .select('*')
+      .order('id', { ascending: false })
+      .range(desde, desde + PASO - 1);
+    if (error) throw error;
+    filas.push(...data);
+    if (data.length < PASO) break;
+  }
+  return filas;
+}
+
+// ── GET /api/exportar ────────────────────────────────────────
+// Excel con dos hojas: Corridas y TiempoEmision
+app.get('/api/exportar', async (req, res) => {
+  try {
+    const [corridas, casos] = await Promise.all([
+      traerTodo('corridas'),
+      traerTodo(TABLA_CASOS)
+    ]);
+    const wb = await construirLibro(corridas, casos);
+    const d = horaHermosillo();
+    const p = n => String(n).padStart(2, '0');
+    const fecha = `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="lab-timer_${fecha}.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error('GET exportar:', e.message);
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/casos/csv ───────────────────────────────────────
+app.get('/api/casos/csv', async (req, res) => {
+  try {
+    const casos = await traerTodo(TABLA_CASOS);
+    const header = ['id_corrida', 'no_caso', 'emision', 'reportado'].join(',');
+    const lines = casos.map(c =>
+      [c.id_corrida, c.no_caso, c.emision ?? '', c.reportado ? 'TRUE' : 'FALSE'].join(','));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="tiempoemision.csv"');
+    res.send([header, ...lines].join('\n'));
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
