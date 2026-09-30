@@ -30,12 +30,6 @@ function nowStr() {
   const p = n => String(n).padStart(2, '0');
   return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
-// Timestamp ISO con offset explícito de Hermosillo, ej. 2026-09-30T10:15:00-07:00
-function isoHermosillo() {
-  const d = horaHermosillo();
-  const p = n => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}-07:00`;
-}
 function todayStr() {
   const d = horaHermosillo();
   const p = n => String(n).padStart(2, '0');
@@ -137,7 +131,7 @@ app.get('/api/casos/pendientes', async (req, res) => {
 });
 
 // ── PATCH /api/casos/:no_caso/reportar ───────────────────────
-// Marca el caso como reportado y registra fecha/hora en emision
+// Marca el caso como reportado y registra fecha/hora en emision (texto DD/MM/YYYY HH:MM:SS, igual que las otras tablas)
 app.patch('/api/casos/:no_caso/reportar', async (req, res) => {
   const { no_caso } = req.params;
   if (!CASO_REGEX.test(no_caso))
@@ -145,7 +139,7 @@ app.patch('/api/casos/:no_caso/reportar', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from(TABLA_CASOS)
-      .update({ reportado: true, emision: isoHermosillo() })
+      .update({ reportado: true, emision: nowStr() })
       .eq('no_caso', no_caso)
       .eq('reportado', false)
       .select('no_caso, emision');
