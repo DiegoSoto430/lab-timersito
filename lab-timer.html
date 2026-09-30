@@ -290,6 +290,40 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
 .btn-cancel { background: #d9d9d9; color: #000; }
 .btn-confirm { background: #1d1d1d; color: #fff; }
 
+
+/* ========== MODAL: SELECCIÓN DE CASOS ========== */
+.modal-box.modal-casos { width: 340px; max-width: 92vw; gap: 16px; padding: 28px 22px; }
+.casos-prefijo {
+  font-family: 'Roboto Mono', monospace; font-size: 14px; color: #777; margin-top: -8px;
+}
+.casos-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.caso-chip { position: relative; display: block; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.caso-chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+.caso-chip span {
+  display: flex; align-items: center; justify-content: center; height: 48px;
+  background: #d9d9d9; border-radius: 8px; color: #000;
+  font-family: 'Roboto Mono', monospace; font-weight: 500; font-size: 16px;
+  transition: background 0.15s, color 0.15s;
+}
+.caso-chip input:checked + span { background: #1d1d1d; color: #fff; }
+.modal-box.modal-casos { max-height: 92vh; }
+.casos-scroll { overflow-y: auto; max-height: 50vh; display: flex; flex-direction: column; gap: 14px; text-align: left; padding: 2px; }
+.casos-seccion { font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 14px; color: #333; margin-bottom: 6px; }
+.casos-seccion small { font-weight: 400; color: #888; }
+.casos-hint { font-family: 'Poppins', sans-serif; font-size: 12px; color: #777; margin-top: 4px; }
+.caso-chip { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.caso-chip.saltado span { background: #F7E3D9; border: 2px dashed #d98a5f; }
+.caso-chip.saltado input:checked + span { background: #1d1d1d; color: #fff; border-color: #1d1d1d; }
+.caso-chip.manual span { border: 2px solid #1d1d1d; }
+.casos-manual-row { display: flex; gap: 8px; }
+.casos-manual-input {
+  flex: 1; min-width: 0; height: 44px; border: 2px solid #d9d9d9; border-radius: 8px; text-align: center;
+  font-family: 'Roboto Mono', monospace; font-size: 18px; outline: none;
+}
+.casos-manual-input:focus { border-color: #1d1d1d; }
+.btn-agregar-caso { flex: none; width: 96px; height: 44px; font-size: 16px; }
+.casos-vacio { font-family: 'Poppins', sans-serif; font-size: 15px; color: #555; }
+
 /* ========== TOAST ========== */
 .toast {
   position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
@@ -446,6 +480,51 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
       <p class="modal-text">El ID de corrida debe tener exactamente 4 dígitos numéricos.</p>
       <div class="modal-buttons">
         <button class="btn-modal btn-confirm" onclick="closeFormatError()">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: SELECCIONAR CASOS DE LA CORRIDA ===== -->
+  <div id="modal-casos" class="modal-overlay hidden">
+    <div class="modal-box modal-casos">
+      <p class="modal-text">¿Qué casos van en esta corrida?</p>
+      <p class="casos-prefijo" id="casos-prefijo"></p>
+      <div class="casos-scroll">
+        <div id="casos-saltados-wrap" style="display:none;">
+          <p class="casos-seccion">Saltados <small>(mantén presionado para eliminar)</small></p>
+          <div class="casos-grid" id="casos-saltados"></div>
+        </div>
+        <div>
+          <p class="casos-seccion">Siguientes</p>
+          <div class="casos-grid" id="casos-grid"></div>
+        </div>
+        <div>
+          <p class="casos-seccion">Agregar manualmente</p>
+          <div class="casos-manual-row">
+            <input type="text" id="caso-manual" class="casos-manual-input" placeholder="XXX"
+                   inputmode="numeric" maxlength="3" autocomplete="off"
+                   oninput="this.value = this.value.replace(/[^0-9]/g,'').slice(0,3)"
+                   onkeydown="if(event.key==='Enter'){agregarCasoManual();}" />
+            <button class="btn-modal btn-confirm btn-agregar-caso" onclick="agregarCasoManual()">Agregar</button>
+          </div>
+          <p class="casos-hint">Debe tener el formato XXX, por ejemplo 030.</p>
+          <div class="casos-grid" id="casos-manuales" style="margin-top:8px;"></div>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cancelarCasos()">Cancelar</button>
+        <button class="btn-modal btn-confirm" id="btn-casos-ok" onclick="confirmarCasos()">Continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: ELIMINAR CASO SALTADO ===== -->
+  <div id="modal-descartar" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p class="modal-text" id="modal-descartar-text" style="white-space:pre-line;">¿Eliminar caso?</p>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cancelarDescartar()">Cancelar</button>
+        <button class="btn-modal btn-confirm" onclick="confirmarDescartar()">Eliminar</button>
       </div>
     </div>
   </div>
@@ -752,16 +831,166 @@ async function goToAreas() {
   state.idCorrida = val;
 
   try {
-    await apiPost('/api/corrida', { id_corrida: val, usuario: state.usuario });
-
-    // Cargar datos actuales de la corrida para mostrar badges
-    const corridas = await apiGet('/api/corridas');
-    state.corridaInfo = corridas.find(c => c.id_corrida === val) || null;
-    if (state.corridaInfo) actualizarBadges(state.corridaInfo);
-
-    showScreen('screen-areas');
+    const { existe } = await apiGet(`/api/corrida/${encodeURIComponent(val)}/existe`);
+    if (existe) {
+      await entrarACorrida(val);          // corrida existente: flujo de siempre
+    } else {
+      await abrirModalCasos();            // corrida nueva: elegir casos primero
+    }
   } catch (e) {
     showToast('⚠️ Sin conexión al servidor');
+  }
+}
+
+// Crea/abre la corrida (con casos si es nueva) y pasa a la pantalla de áreas
+async function entrarACorrida(id, casos) {
+  const body = { id_corrida: id, usuario: state.usuario };
+  if (casos) body.casos = casos;
+  await apiPost('/api/corrida', body);
+
+  const corridas = await apiGet('/api/corridas');
+  state.corridaInfo = corridas.find(c => c.id_corrida === id) || null;
+  if (state.corridaInfo) actualizarBadges(state.corridaInfo);
+
+  showScreen('screen-areas');
+}
+
+// ============================================================
+// MODAL: SELECCIONAR CASOS (TiempoEmision)
+// ============================================================
+let casosPrefijo = '';
+let casosTomados = [];
+let casoPorDescartar = null;
+const LONG_PRESS_MS = 600;
+
+function crearChipCaso(c, { saltado = false, manual = false, checked = false } = {}) {
+  const label = document.createElement('label');
+  label.className = 'caso-chip' + (saltado ? ' saltado' : '') + (manual ? ' manual' : '');
+  label.innerHTML = `<input type="checkbox" value="${c}"${checked ? ' checked' : ''}><span>${c}</span>`;
+
+  if (saltado) {
+    let timer = null;
+    let fired = false;
+    const cancelar = () => { clearTimeout(timer); timer = null; };
+    label.addEventListener('pointerdown', () => {
+      fired = false;
+      timer = setTimeout(() => { fired = true; pedirDescartar(c); }, LONG_PRESS_MS);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel', 'pointermove'].forEach(ev =>
+      label.addEventListener(ev, cancelar));
+    // Si fue pulsación larga, que no marque/desmarque el checkbox
+    label.addEventListener('click', e => { if (fired) { e.preventDefault(); fired = false; } });
+    label.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  return label;
+}
+
+async function abrirModalCasos() {
+  const { prefijo, saltados, consecutivos, tomados } = await apiGet('/api/casos/siguientes');
+  casosPrefijo = prefijo;
+  casosTomados = tomados || [];
+  const pad = n => String(n).padStart(3, '0');
+
+  document.getElementById('casos-prefijo').textContent = prefijo;
+
+  const wrapSalt = document.getElementById('casos-saltados-wrap');
+  const gridSalt = document.getElementById('casos-saltados');
+  gridSalt.innerHTML = '';
+  saltados.forEach(n => gridSalt.appendChild(crearChipCaso(pad(n), { saltado: true })));
+  wrapSalt.style.display = saltados.length ? '' : 'none';
+
+  const grid = document.getElementById('casos-grid');
+  grid.innerHTML = '';
+  if (!consecutivos.length) {
+    grid.innerHTML = '<p class="casos-vacio">No hay más consecutivos disponibles este mes.</p>';
+  } else {
+    consecutivos.forEach(n => grid.appendChild(crearChipCaso(pad(n))));
+  }
+
+  document.getElementById('casos-manuales').innerHTML = '';
+  document.getElementById('caso-manual').value = '';
+  document.getElementById('modal-casos').classList.remove('hidden');
+}
+
+// ── Captura manual (excepciones) ─────────────────────────────
+function agregarCasoManual() {
+  const inp = document.getElementById('caso-manual');
+  const v = inp.value.trim();
+  if (!/^[0-9]{3}$/.test(v) || v === '000') {
+    showToast('⚠️ Formato XXX, ej. 030');
+    return;
+  }
+  if (casosTomados.includes(parseInt(v, 10))) {
+    showToast(`⚠️ ${casosPrefijo}-${v} ya está registrado`);
+    return;
+  }
+  const existente = document.querySelector(`#modal-casos input[type="checkbox"][value="${v}"]`);
+  if (existente) {
+    existente.checked = true;
+    showToast('Ya estaba en la lista, quedó marcado');
+  } else {
+    document.getElementById('casos-manuales').appendChild(
+      crearChipCaso(v, { manual: true, checked: true })
+    );
+  }
+  inp.value = '';
+  inp.focus();
+}
+
+// ── Eliminar caso saltado (pulsación larga) ──────────────────
+function pedirDescartar(c) {
+  casoPorDescartar = c;
+  document.getElementById('modal-descartar-text').textContent =
+    `¿Eliminar ${casosPrefijo}-${c} de las opciones?\nYa no volverá a aparecer.`;
+  document.getElementById('modal-descartar').classList.remove('hidden');
+}
+
+function cancelarDescartar() {
+  casoPorDescartar = null;
+  document.getElementById('modal-descartar').classList.add('hidden');
+}
+
+async function confirmarDescartar() {
+  const c = casoPorDescartar;
+  document.getElementById('modal-descartar').classList.add('hidden');
+  if (!c) return;
+  try {
+    await apiPost('/api/casos/descartar', { no_caso: `${casosPrefijo}-${c}` });
+    const chip = document.querySelector(`#casos-saltados input[value="${c}"]`);
+    if (chip) chip.closest('label').remove();
+    if (!document.querySelector('#casos-saltados .caso-chip'))
+      document.getElementById('casos-saltados-wrap').style.display = 'none';
+    showToast('Caso eliminado de las opciones');
+  } catch (e) {
+    showToast('⚠️ ' + ((e && e.error) || 'No se pudo eliminar'));
+  }
+  casoPorDescartar = null;
+}
+
+function cancelarCasos() {
+  document.getElementById('modal-casos').classList.add('hidden');
+}
+
+async function confirmarCasos() {
+  const marcados = [...document.querySelectorAll('#modal-casos input[type="checkbox"]:checked')]
+    .map(i => `${casosPrefijo}-${i.value}`);
+  if (!marcados.length) { showToast('⚠️ Selecciona al menos un caso'); return; }
+
+  const btn = document.getElementById('btn-casos-ok');
+  btn.disabled = true;
+  try {
+    await entrarACorrida(state.idCorrida, marcados);
+    document.getElementById('modal-casos').classList.add('hidden');
+  } catch (e) {
+    if (e && e.error && e.error.includes('ya fue tomado')) {
+      showToast('⚠️ Casos ya tomados, actualizando...');
+      document.getElementById('modal-casos').classList.add('hidden');
+      try { await abrirModalCasos(); } catch (_) {}
+    } else {
+      showToast('⚠️ ' + ((e && e.error) || 'Sin conexión al servidor'));
+    }
+  } finally {
+    btn.disabled = false;
   }
 }
 

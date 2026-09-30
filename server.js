@@ -43,11 +43,106 @@ function parseTS(ts) {
   return new Date(`${yyyy}-${mm}-${dd}T${timePart}`);
 }
 
+// ── Helpers de casos (TiempoEmision) ─────────────────────────
+const TABLA_CASOS = 'TiempoEmision';
+const TABLA_DESC  = 'CasosDescartados';
+const CASO_REGEX  = /^BM\d{4}-\d{3}$/;
+
+// Prefijo del mes actual en hora Hermosillo, ej. "BM2609"
+function prefijoCasos() {
+  const d  = horaHermosillo();
+  const yy = String(d.getUTCFullYear()).slice(2);
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `BM${yy}${mm}`;
+}
+
+// ── GET /api/casos/siguientes ────────────────────────────────
+// saltados:     huecos del mes actual (no registrados y no descartados)
+// consecutivos: los siguientes 10 después del último registrado
+// tomados:      todos los consecutivos ya registrados este mes
+app.get('/api/casos/siguientes', async (req, res) => {
+  try {
+    const prefijo = prefijoCasos();
+    const [rTom, rDesc] = await Promise.all([
+      supabase.from(TABLA_CASOS).select('no_caso').like('no_caso', `${prefijo}-%`).limit(1000),
+      supabase.from(TABLA_DESC).select('no_caso').like('no_caso', `${prefijo}-%`).limit(1000)
+    ]);
+    if (rTom.error)  throw rTom.error;
+    if (rDesc.error) throw rDesc.error;
+
+    const num = r => parseInt(r.no_caso.slice(-3), 10);
+    const tomados     = new Set(rTom.data.map(num));
+    const descartados = new Set(rDesc.data.map(num));
+    const ultimo      = tomados.size ? Math.max(...tomados) : 0;
+
+    const saltados = [];
+    for (let n = 1; n < ultimo; n++) {
+      if (!tomados.has(n) && !descartados.has(n)) saltados.push(n);
+    }
+    const consecutivos = [];
+    for (let n = ultimo + 1; n <= Math.min(ultimo + 10, 999); n++) consecutivos.push(n);
+
+    res.json({ prefijo, saltados, consecutivos, tomados: [...tomados] });
+  } catch (e) {
+    console.error('GET casos/siguientes:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/casos/descartar ────────────────────────────────
+// Quita un caso saltado de las opciones del menú (no lo borra de TiempoEmision)
+app.post('/api/casos/descartar', async (req, res) => {
+  const { no_caso } = req.body;
+  if (!CASO_REGEX.test(no_caso || '') || !no_caso.startsWith(prefijoCasos() + '-'))
+    return res.status(400).json({ error: 'Caso inválido' });
+  try {
+    const { data: tomado, error: e1 } = await supabase
+      .from(TABLA_CASOS).select('id').eq('no_caso', no_caso).limit(1);
+    if (e1) throw e1;
+    if (tomado && tomado.length)
+      return res.status(409).json({ error: 'Ese caso ya está registrado en una corrida' });
+
+    const { error } = await supabase
+      .from(TABLA_DESC)
+      .upsert({ no_caso }, { onConflict: 'no_caso', ignoreDuplicates: true });
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('POST casos/descartar:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/corrida/:id/existe ──────────────────────────────
+app.get('/api/corrida/:id_corrida/existe', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('corridas')
+      .select('id')
+      .eq('id_corrida', req.params.id_corrida)
+      .limit(1);
+    if (error) throw error;
+    res.json({ existe: !!(data && data.length) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── POST /api/corrida ────────────────────────────────────────
+// body: { id_corrida, usuario, casos?: ["BM2609-031", ...] }
+// Si la corrida es nueva y vienen casos, también los registra en TiempoEmision.
 app.post('/api/corrida', async (req, res) => {
-  const { id_corrida, usuario } = req.body;
+  const { id_corrida, usuario, casos } = req.body;
   if (!id_corrida || !usuario)
     return res.status(400).json({ error: 'Faltan campos' });
+
+  if (casos !== undefined) {
+    const valido = Array.isArray(casos) && casos.length > 0 &&
+                   casos.every(c => typeof c === 'string' && CASO_REGEX.test(c));
+    if (!valido)
+      return res.status(400).json({ error: 'Lista de casos inválida' });
+  }
+
   try {
     const { data: existe } = await supabase
       .from('corridas')
@@ -60,6 +155,25 @@ app.post('/api/corrida', async (req, res) => {
         id_corrida, fecha: todayStr(), hora_inicio: nowStr()
       });
       if (error) throw error;
+
+      if (casos && casos.length) {
+        const filas = casos.map(no_caso => ({ id_corrida, no_caso, reportado: false }));
+        const { error: eCasos } = await supabase.from(TABLA_CASOS).insert(filas);
+        if (eCasos) {
+          // Deshacer la corrida recién creada para no dejarla a medias
+          await supabase.from('corridas').delete().eq('id_corrida', id_corrida);
+          console.error('POST /api/corrida (casos):', eCasos.message);
+          const duplicado = eCasos.code === '23505';
+          return res.status(duplicado ? 409 : 500).json({
+            error: duplicado
+              ? 'Alguno de esos casos ya fue tomado por otra corrida. Vuelve a intentarlo.'
+              : eCasos.message
+          });
+        }
+      }
+      if (casos && casos.length) {
+        await supabase.from(TABLA_DESC).delete().in('no_caso', casos); // best-effort
+      }
       return res.json({ ok: true, nueva: true });
     }
     res.json({ ok: true, nueva: false });
@@ -287,6 +401,7 @@ app.delete('/api/corrida/:id_corrida', async (req, res) => {
   const { id_corrida } = req.params;
   try {
     await supabase.from('sesiones_activas').delete().eq('id_corrida', id_corrida);
+    await supabase.from(TABLA_CASOS).delete().eq('id_corrida', id_corrida);
     const { error } = await supabase.from('corridas').delete().eq('id_corrida', id_corrida);
     if (error) throw error;
     res.json({ ok: true });
