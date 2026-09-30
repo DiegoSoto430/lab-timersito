@@ -30,6 +30,12 @@ function nowStr() {
   const p = n => String(n).padStart(2, '0');
   return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
+// Timestamp ISO con offset explícito de Hermosillo, ej. 2026-09-30T10:15:00-07:00
+function isoHermosillo() {
+  const d = horaHermosillo();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}-07:00`;
+}
 function todayStr() {
   const d = horaHermosillo();
   const p = n => String(n).padStart(2, '0');
@@ -109,6 +115,46 @@ app.post('/api/casos/descartar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('POST casos/descartar:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/casos/pendientes ────────────────────────────────
+// Casos de TiempoEmision que aún no se reportan (reportado = false)
+app.get('/api/casos/pendientes', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from(TABLA_CASOS)
+      .select('id, id_corrida, no_caso')
+      .eq('reportado', false)
+      .order('no_caso', { ascending: true });
+    if (error) throw error;
+    res.json(data);
+  } catch (e) {
+    console.error('GET casos/pendientes:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── PATCH /api/casos/:no_caso/reportar ───────────────────────
+// Marca el caso como reportado y registra fecha/hora en emision
+app.patch('/api/casos/:no_caso/reportar', async (req, res) => {
+  const { no_caso } = req.params;
+  if (!CASO_REGEX.test(no_caso))
+    return res.status(400).json({ error: 'Caso inválido' });
+  try {
+    const { data, error } = await supabase
+      .from(TABLA_CASOS)
+      .update({ reportado: true, emision: isoHermosillo() })
+      .eq('no_caso', no_caso)
+      .eq('reportado', false)
+      .select('no_caso, emision');
+    if (error) throw error;
+    if (!data || !data.length)
+      return res.status(409).json({ error: 'El caso no existe o ya fue reportado' });
+    res.json({ ok: true, emision: data[0].emision });
+  } catch (e) {
+    console.error('PATCH casos/reportar:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

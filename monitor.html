@@ -84,6 +84,36 @@ html, body { width: 100%; min-height: 100%; background: #f8fafc; font-family: 'P
 .btn-cancel  { background: #d9d9d9; color: #000; }
 .btn-confirm { background: #ef4444; color: #fff; }
 
+/* Pestañas */
+.tabs { width: 100%; max-width: 370px; display: flex; gap: 8px; margin-bottom: 20px; }
+.tab-btn {
+  flex: 1; height: 44px; border: none; border-radius: 10px; background: #e2e8f0; color: #334155;
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 15px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: background 0.15s, color 0.15s;
+}
+.tab-btn.active { background: #1d1d1d; color: #fff; }
+.tab-count {
+  display: inline-block; min-width: 22px; padding: 0 6px; margin-left: 6px; border-radius: 11px;
+  background: #ef4444; color: #fff; font-size: 12px; line-height: 22px;
+}
+.tab-count.cero { background: #94a3b8; }
+
+/* Tarjeta de caso */
+.caso-card {
+  width: 100%; max-width: 370px; background: #fff; border-radius: 16px; padding: 16px 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.caso-no { font-family: 'Roboto Mono', monospace; font-size: 20px; color: #000; }
+.caso-corrida { font-family: 'Roboto', sans-serif; font-size: 13px; color: #888; margin-top: 2px; }
+.btn-reportar {
+  height: 44px; padding: 0 18px; border: none; border-radius: 8px; background: #22c55e; color: #fff;
+  font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 15px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-reportar:active { filter: brightness(0.92); }
+.btn-confirm-ok { background: #22c55e; color: #fff; }
+
 .empty-state { width: 100%; max-width: 370px; text-align: center; padding: 60px 0; }
 .empty-state p { font-family: 'Roboto', sans-serif; font-size: 18px; color: #999; }
   </style>
@@ -99,7 +129,12 @@ html, body { width: 100%; min-height: 100%; background: #f8fafc; font-family: 'P
     <div class="refresh-bar">
       <span class="refresh-text" id="refresh-text">Próxima actualización: 10s</span>
     </div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-btn-corridas" onclick="cambiarTab('corridas')">Corridas</button>
+      <button class="tab-btn" id="tab-btn-casos" onclick="cambiarTab('casos')">Por reportar<span class="tab-count cero" id="casos-count">0</span></button>
+    </div>
     <div id="corridas-container"></div>
+    <div id="casos-container" style="display:none; width:100%; flex-direction:column; align-items:center;"></div>
   </div>
 
   <!-- Modal confirmar eliminar -->
@@ -113,11 +148,25 @@ html, body { width: 100%; min-height: 100%; background: #f8fafc; font-family: 'P
     </div>
   </div>
 
+  <!-- Modal confirmar reportar -->
+  <div id="modal-reportar" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p class="modal-text" id="modal-reportar-text">¿Reportar caso?</p>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cancelarReportar()">Cancelar</button>
+        <button class="btn-modal btn-confirm-ok" id="btn-reportar-ok" onclick="confirmarReportar()">Reportar</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 const SERVER = 'https://lab-timersito.onrender.com';
 let countdown = 10;
 let countdownInterval = null;
 let corridaPendienteEliminar = null;
+let casoPendienteReportar = null;
+let tabActual = 'corridas';
+let casosPendientes = [];
 
 // Guarda hora_entrada de sesiones para calcular cronómetros
 let sesionesActivas = {};  // key: "id_corrida|area" → hora_entrada string
@@ -143,6 +192,7 @@ async function fetchMonitor() {
     }
 
     renderCorridas(data.corridas);
+    await fetchCasos();
     document.getElementById('status-text').textContent = `Última actualización: ${horaActual()}`;
   } catch (e) {
     document.getElementById('status-text').textContent = '⚠️ Sin conexión';
@@ -242,6 +292,77 @@ function horaActual() {
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// ── Casos por reportar ───────────────────────────────────────
+async function fetchCasos() {
+  try {
+    const r = await fetch(`${SERVER}/api/casos/pendientes`);
+    if (!r.ok) return;
+    casosPendientes = await r.json();
+    renderCasos();
+  } catch (e) { /* el status de conexión ya lo maneja fetchMonitor */ }
+}
+
+function renderCasos() {
+  const count = document.getElementById('casos-count');
+  count.textContent = casosPendientes.length;
+  count.classList.toggle('cero', casosPendientes.length === 0);
+
+  const container = document.getElementById('casos-container');
+  if (!casosPendientes.length) {
+    container.innerHTML = `<div class="empty-state"><p>✅ No hay casos por reportar</p></div>`;
+    return;
+  }
+  container.innerHTML = casosPendientes.map(c => `
+    <div class="caso-card">
+      <div>
+        <div class="caso-no">${c.no_caso}</div>
+        <div class="caso-corrida">Corrida: ${c.id_corrida}</div>
+      </div>
+      <button class="btn-reportar" onclick="pedirReportar('${c.no_caso}')">Reportar</button>
+    </div>`).join('');
+}
+
+function cambiarTab(tab) {
+  tabActual = tab;
+  const esCorridas = tab === 'corridas';
+  document.getElementById('corridas-container').style.display = esCorridas ? '' : 'none';
+  document.getElementById('casos-container').style.display    = esCorridas ? 'none' : 'flex';
+  document.getElementById('tab-btn-corridas').classList.toggle('active', esCorridas);
+  document.getElementById('tab-btn-casos').classList.toggle('active', !esCorridas);
+  if (!esCorridas) fetchCasos();
+}
+
+function pedirReportar(noCaso) {
+  casoPendienteReportar = noCaso;
+  document.getElementById('modal-reportar-text').textContent =
+    `¿Reportar el caso ${noCaso}? Se registrará la fecha y hora actual.`;
+  document.getElementById('modal-reportar').classList.remove('hidden');
+}
+
+function cancelarReportar() {
+  casoPendienteReportar = null;
+  document.getElementById('modal-reportar').classList.add('hidden');
+}
+
+async function confirmarReportar() {
+  const noCaso = casoPendienteReportar;
+  if (!noCaso) return;
+  const btn = document.getElementById('btn-reportar-ok');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${SERVER}/api/casos/${encodeURIComponent(noCaso)}/reportar`, { method: 'PATCH' });
+    const data = await r.json();
+    if (!r.ok) throw data;
+  } catch (e) {
+    alert((e && e.error) || 'Error al reportar');
+  } finally {
+    btn.disabled = false;
+    casoPendienteReportar = null;
+    document.getElementById('modal-reportar').classList.add('hidden');
+    fetchCasos();
+  }
 }
 
 // ── Eliminar corrida ─────────────────────────────────────────
