@@ -324,6 +324,21 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
 .btn-agregar-caso { flex: none; width: 96px; height: 44px; font-size: 16px; }
 .casos-vacio { font-family: 'Poppins', sans-serif; font-size: 15px; color: #555; }
 
+/* ========== GESTIÓN DE CASOS DE UNA CORRIDA ========== */
+.btn-area.btn-casos { background: #1d1d1d; color: #fff; }
+.gestion-lista { display: flex; flex-direction: column; gap: 8px; max-height: 45vh; overflow-y: auto; text-align: left; }
+.gestion-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: #ececec; border-radius: 8px; padding: 6px 12px; min-height: 48px;
+}
+.gestion-no { font-family: 'Roboto Mono', monospace; font-size: 16px; color: #000; }
+.gestion-rep { font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 600; color: #2f855a; }
+.btn-quitar {
+  width: 36px; height: 36px; border: none; border-radius: 8px; background: #ef4444; color: #fff;
+  font-size: 18px; line-height: 1; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.btn-agregar-mas { width: 100%; }
+
 /* ========== TOAST ========== */
 .toast {
   position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
@@ -429,6 +444,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
         Amplificación
         <span class="area-badge" id="badge-amplificacion"></span>
       </button>
+      <button class="btn-area btn-casos" onclick="abrirGestionCasos()">Casos</button>
     </div>
   </div>
 
@@ -484,10 +500,33 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; font
     </div>
   </div>
 
+  <!-- ===== MODAL: CASOS DE LA CORRIDA (ver / quitar / agregar) ===== -->
+  <div id="modal-gestion" class="modal-overlay hidden">
+    <div class="modal-box modal-casos">
+      <p class="modal-text" id="gestion-titulo">Casos de la corrida</p>
+      <div class="gestion-lista" id="gestion-lista"></div>
+      <button class="btn-modal btn-confirm btn-agregar-mas" onclick="abrirModalCasos('agregar')">+ Agregar casos</button>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cerrarGestionCasos()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: CONFIRMAR QUITAR CASO ===== -->
+  <div id="modal-quitar" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p class="modal-text" id="modal-quitar-text" style="white-space:pre-line;">¿Quitar caso?</p>
+      <div class="modal-buttons">
+        <button class="btn-modal btn-cancel" onclick="cancelarQuitar()">Cancelar</button>
+        <button class="btn-modal btn-confirm" onclick="confirmarQuitar()">Quitar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== MODAL: SELECCIONAR CASOS DE LA CORRIDA ===== -->
   <div id="modal-casos" class="modal-overlay hidden">
     <div class="modal-box modal-casos">
-      <p class="modal-text">¿Qué casos van en esta corrida?</p>
+      <p class="modal-text" id="casos-titulo">¿Qué casos van en esta corrida?</p>
       <p class="casos-prefijo" id="casos-prefijo"></p>
       <div class="casos-scroll">
         <div id="casos-saltados-wrap" style="display:none;">
@@ -885,8 +924,20 @@ function crearChipCaso(c, { saltado = false, manual = false, checked = false } =
   return label;
 }
 
-async function abrirModalCasos() {
-  const { prefijo, saltados, consecutivos, tomados } = await apiGet('/api/casos/siguientes');
+let casosModo = 'nueva'; // 'nueva' = corrida nueva | 'agregar' = corrida existente
+
+async function abrirModalCasos(modo = 'nueva') {
+  casosModo = modo;
+  document.getElementById('casos-titulo').textContent =
+    modo === 'agregar' ? '¿Qué casos quieres agregar?' : '¿Qué casos van en esta corrida?';
+  let datos;
+  try {
+    datos = await apiGet('/api/casos/siguientes');
+  } catch (e) {
+    showToast('⚠️ Sin conexión al servidor');
+    return;
+  }
+  const { prefijo, saltados, consecutivos, tomados } = datos;
   casosPrefijo = prefijo;
   casosTomados = tomados || [];
   const pad = n => String(n).padStart(3, '0');
@@ -979,19 +1030,93 @@ async function confirmarCasos() {
   const btn = document.getElementById('btn-casos-ok');
   btn.disabled = true;
   try {
-    await entrarACorrida(state.idCorrida, marcados);
-    document.getElementById('modal-casos').classList.add('hidden');
+    if (casosModo === 'agregar') {
+      await apiPost(`/api/corrida/${encodeURIComponent(state.idCorrida)}/casos`, { casos: marcados });
+      document.getElementById('modal-casos').classList.add('hidden');
+      showToast(marcados.length === 1 ? 'Caso agregado' : `${marcados.length} casos agregados`);
+      await refrescarGestionCasos();
+    } else {
+      await entrarACorrida(state.idCorrida, marcados);
+      document.getElementById('modal-casos').classList.add('hidden');
+    }
   } catch (e) {
     if (e && e.error && e.error.includes('ya fue tomado')) {
       showToast('⚠️ Casos ya tomados, actualizando...');
       document.getElementById('modal-casos').classList.add('hidden');
-      try { await abrirModalCasos(); } catch (_) {}
+      try { await abrirModalCasos(casosModo); } catch (_) {}
     } else {
       showToast('⚠️ ' + ((e && e.error) || 'Sin conexión al servidor'));
     }
   } finally {
     btn.disabled = false;
   }
+}
+
+// ============================================================
+// CASOS DE UNA CORRIDA EXISTENTE (ver / quitar / agregar)
+// ============================================================
+let casoPorQuitar = null;
+
+async function abrirGestionCasos() {
+  document.getElementById('gestion-titulo').textContent = `Casos de la corrida ${state.idCorrida}`;
+  document.getElementById('gestion-lista').innerHTML = '<p class="casos-vacio">Cargando...</p>';
+  document.getElementById('modal-gestion').classList.remove('hidden');
+  await refrescarGestionCasos();
+}
+
+function cerrarGestionCasos() {
+  document.getElementById('modal-gestion').classList.add('hidden');
+}
+
+async function refrescarGestionCasos() {
+  const lista = document.getElementById('gestion-lista');
+  try {
+    const casos = await apiGet(`/api/corrida/${encodeURIComponent(state.idCorrida)}/casos`);
+    if (!casos.length) {
+      lista.innerHTML = '<p class="casos-vacio">Esta corrida no tiene casos.</p>';
+      return;
+    }
+    lista.innerHTML = casos.map(c => `
+      <div class="gestion-row">
+        <span class="gestion-no">${c.no_caso}</span>
+        ${c.reportado
+          ? '<span class="gestion-rep">Reportado</span>'
+          : `<button class="btn-quitar" onclick="pedirQuitar('${c.no_caso}')" aria-label="Quitar ${c.no_caso}">✕</button>`}
+      </div>`).join('');
+  } catch (e) {
+    lista.innerHTML = '<p class="casos-vacio">⚠️ No se pudieron cargar los casos.</p>';
+  }
+}
+
+function pedirQuitar(noCaso) {
+  casoPorQuitar = noCaso;
+  document.getElementById('modal-quitar-text').textContent =
+    `¿Quitar ${noCaso} de la corrida ${state.idCorrida}?\nVolverá a aparecer como caso saltado.`;
+  document.getElementById('modal-quitar').classList.remove('hidden');
+}
+
+function cancelarQuitar() {
+  casoPorQuitar = null;
+  document.getElementById('modal-quitar').classList.add('hidden');
+}
+
+async function confirmarQuitar() {
+  const noCaso = casoPorQuitar;
+  document.getElementById('modal-quitar').classList.add('hidden');
+  if (!noCaso) return;
+  try {
+    const r = await fetch(
+      `${SERVER}/api/corrida/${encodeURIComponent(state.idCorrida)}/casos/${encodeURIComponent(noCaso)}`,
+      { method: 'DELETE' }
+    );
+    const data = await r.json();
+    if (!r.ok) throw data;
+    showToast('Caso quitado de la corrida');
+  } catch (e) {
+    showToast('⚠️ ' + ((e && e.error) || 'No se pudo quitar el caso'));
+  }
+  casoPorQuitar = null;
+  await refrescarGestionCasos();
 }
 
 // ============================================================

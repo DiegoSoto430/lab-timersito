@@ -210,6 +210,83 @@ app.get('/api/casos/csv', async (req, res) => {
   }
 });
 
+// ── GET /api/corrida/:id_corrida/casos ───────────────────────
+// Casos de una corrida (con su estado de reporte)
+app.get('/api/corrida/:id_corrida/casos', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from(TABLA_CASOS)
+      .select('no_caso, reportado, emision')
+      .eq('id_corrida', req.params.id_corrida)
+      .order('no_caso', { ascending: true });
+    if (error) throw error;
+    res.json(data);
+  } catch (e) {
+    console.error('GET corrida/casos:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/corrida/:id_corrida/casos ──────────────────────
+// Agrega casos a una corrida ya existente. body: { casos: ["BM2609-034", ...] }
+app.post('/api/corrida/:id_corrida/casos', async (req, res) => {
+  const { id_corrida } = req.params;
+  const { casos } = req.body;
+  const valido = Array.isArray(casos) && casos.length > 0 &&
+                 casos.every(c => typeof c === 'string' && CASO_REGEX.test(c));
+  if (!valido) return res.status(400).json({ error: 'Lista de casos inválida' });
+
+  try {
+    const { data: corrida, error: e0 } = await supabase
+      .from('corridas').select('id').eq('id_corrida', id_corrida).limit(1);
+    if (e0) throw e0;
+    if (!corrida || !corrida.length)
+      return res.status(404).json({ error: 'La corrida no existe' });
+
+    const unicos = [...new Set(casos)];
+    const filas = unicos.map(no_caso => ({ id_corrida, no_caso, reportado: false }));
+    const { error } = await supabase.from(TABLA_CASOS).insert(filas);
+    if (error) {
+      const duplicado = error.code === '23505';
+      console.error('POST corrida/casos:', error.message);
+      return res.status(duplicado ? 409 : 500).json({
+        error: duplicado
+          ? 'Alguno de esos casos ya fue tomado por otra corrida. Vuelve a intentarlo.'
+          : error.message
+      });
+    }
+    await supabase.from(TABLA_DESC).delete().in('no_caso', unicos); // best-effort
+    res.json({ ok: true, agregados: unicos.length });
+  } catch (e) {
+    console.error('POST corrida/casos:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── DELETE /api/corrida/:id_corrida/casos/:no_caso ───────────
+// Quita un caso de la corrida. No permite quitar casos ya reportados.
+app.delete('/api/corrida/:id_corrida/casos/:no_caso', async (req, res) => {
+  const { id_corrida, no_caso } = req.params;
+  if (!CASO_REGEX.test(no_caso))
+    return res.status(400).json({ error: 'Caso inválido' });
+  try {
+    const { data, error } = await supabase
+      .from(TABLA_CASOS)
+      .delete()
+      .eq('id_corrida', id_corrida)
+      .eq('no_caso', no_caso)
+      .eq('reportado', false)
+      .select('no_caso');
+    if (error) throw error;
+    if (!data || !data.length)
+      return res.status(409).json({ error: 'El caso no está en la corrida o ya fue reportado' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE corrida/casos:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── GET /api/corrida/:id/existe ──────────────────────────────
 app.get('/api/corrida/:id_corrida/existe', async (req, res) => {
   try {
